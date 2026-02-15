@@ -1,29 +1,76 @@
 @import "tailwindcss";
+
+@theme {
+  /* Primary Brand Colors */
+  --color-primary: var(--color-blue-600);
+  --color-primary-hover: var(--color-blue-700);
+  --color-primary-light: var(--color-blue-400);
+  /* Focus rings */
+  --color-primary-bg: var(--color-blue-50);
+  /* Light backgrounds */
+  --color-primary-text: var(--color-blue-800);
+  /* Dark blue text */
+  --color-primary-text-soft: var(--color-blue-700);
+
+  /* Secondary / Neutral Colors */
+  --color-secondary: var(--color-gray-200);
+  --color-secondary-hover: var(--color-gray-300);
+
+  /* Status Colors */
+  --color-success: var(--color-green-600);
+  --color-success-hover: var(--color-green-700);
+
+  /* Text Colors */
+  --color-text-main: var(--color-gray-800);
+  --color-text-muted: var(--color-gray-600);
+  --color-text-subtle: var(--color-gray-700);
+
+  /* Backgrounds */
+  --color-bg-page: var(--color-blue-50);
+  /* Main page bg */
+  --color-bg-surface: white;
+  /* Cards, navs */
+  --color-bg-alt: var(--color-gray-100);
+  /* Dashboard bg */
+}
+
 @layer base {
   body {
-    @apply bg-blue-50 text-gray-800;
+    @apply bg-bg-page text-text-main font-sans antialiased;
   }
 
-  h1, h2, h3 {
-    @apply font-semibold;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-semibold tracking-tight;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply bg-blue-600 text-white px-6 py-2 rounded-lg shadow-md hover:bg-blue-700 transition;
+    @apply bg-primary text-white px-6 py-2 rounded-lg shadow-md hover:bg-primary-hover transition-colors duration-200 cursor-pointer;
   }
 
   .btn-secondary {
-    @apply bg-gray-200 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-300 transition;
+    @apply bg-secondary text-text-main px-6 py-2 rounded-lg hover:bg-secondary-hover transition-colors duration-200 cursor-pointer;
+  }
+
+  .btn-success {
+    @apply bg-success text-white px-4 py-2 rounded-lg hover:bg-success-hover transition-colors duration-200 cursor-pointer;
   }
 
   .card {
-    @apply bg-white shadow-lg rounded-xl p-8;
+    @apply bg-bg-surface shadow-lg rounded-xl p-8 border border-gray-100;
   }
 
   .input-field {
-    @apply w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400;
+    @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-light focus:border-transparent transition-all;
+  }
+
+  .link-nav {
+    @apply text-text-subtle hover:text-primary transition-colors;
   }
 }
-
