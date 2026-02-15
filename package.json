@@ -1,0 +1,9 @@
+{
+  "name": "queue-smart-swd",
+  "version": "1.0.0",
+  "scripts": {
+    "docker:dev": "docker compose -f docker-compose.dev.yml up",
+    "docker:stop": "docker compose -f docker-compose.dev.yml down"
+  },
+  "type": "commonjs"
+}
