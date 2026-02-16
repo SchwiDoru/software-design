@@ -14,19 +14,19 @@ export const Button: React.FC<ButtonProps> = ({
     className = '',
     ...props
 }) => {
-    const baseStyles = "font-medium rounded-lg transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1";
+    const baseStyles = "group inline-flex items-center justify-center rounded-xl font-medium transition-all duration-200 ease-out cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
 
     const variants = {
-        primary: "bg-primary text-white hover:bg-primary-hover focus:ring-primary-light",
-        secondary: "bg-secondary text-text-main hover:bg-secondary-hover focus:ring-gray-400",
-        success: "bg-success text-white hover:bg-success-hover focus:ring-green-400",
-        danger: "bg-red-600 text-white hover:bg-red-700 focus:ring-red-400" // Added danger even if not in CSS class yet, useful for Admin
+        primary: "bg-gradient-to-r from-accent to-accent-secondary text-accent-foreground shadow-[0_4px_14px_rgba(0,82,255,0.25)] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_8px_24px_rgba(0,82,255,0.35)]",
+        secondary: "border border-border bg-white text-foreground shadow-sm hover:-translate-y-0.5 hover:border-accent/30 hover:bg-muted",
+        success: "bg-success text-white shadow-sm hover:-translate-y-0.5 hover:brightness-110",
+        danger: "bg-danger text-white shadow-sm hover:-translate-y-0.5 hover:brightness-110"
     };
 
     const sizes = {
-        sm: "px-3 py-1.5 text-sm",
-        md: "px-6 py-2 text-base",
-        lg: "px-8 py-3 text-lg"
+        sm: "h-10 px-4 text-sm",
+        md: "h-12 px-6 text-base",
+        lg: "h-14 px-8 text-lg"
     };
 
     const widthClass = fullWidth ? "w-full" : "";
