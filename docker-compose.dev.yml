@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  frontend:
+    build: 
+      context: ./queuesmart
+      target: dev
+    image: queuesmart-frontend:dev
+    container_name: queuesmart-frontend-dev
+    volumes:
+      - ./queuesmart:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - CHOKIDAR_USEPOLLING=true  
