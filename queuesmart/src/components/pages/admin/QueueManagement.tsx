@@ -1,261 +1,270 @@
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import type { DropResult } from '@hello-pangea/dnd';
-import AdminLayout from '../../admin/AdminLayout';
-import { Button } from '../../ui/Button';
-import type { QueueEntry } from '../../../types';
-
-import { MOCK_QUEUES, MOCK_ENTRIES } from '../../../data/mockData';
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
+import type { DropResult } from "@hello-pangea/dnd";
+import AdminLayout from "../../admin/AdminLayout";
+import { Button } from "../../ui/Button";
+import type { Queue, QueueEntry } from "../../../types";
+import { readQueueEntries, readQueues, subscribeQueueStore, writeQueueEntries } from "../../../data/queueStore";
 
 export default function QueueManagement() {
-    const [searchParams, setSearchParams] = useSearchParams();
-    const [selectedQueueId, setSelectedQueueId] = useState<number | null>(null);
-    const [entries, setEntries] = useState<QueueEntry[]>(MOCK_ENTRIES);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedQueueId, setSelectedQueueId] = useState<number | null>(null);
+  const [queues, setQueues] = useState<Queue[]>(readQueues);
+  const [entries, setEntries] = useState<QueueEntry[]>(readQueueEntries);
 
-    // Sync URL param with state on mount/change
-    useEffect(() => {
-        const idParam = searchParams.get('id');
-        if (idParam) {
-            setSelectedQueueId(Number(idParam));
-        }
-    }, [searchParams]);
+  useEffect(() => {
+    return subscribeQueueStore(() => {
+      setQueues(readQueues());
+      setEntries(readQueueEntries());
+    });
+  }, []);
 
-    const handleSelectQueue = (id: number) => {
-        setSelectedQueueId(id);
-        setSearchParams({ id: id.toString() });
-    };
+  useEffect(() => {
+    const idParam = searchParams.get("id");
+    if (idParam) {
+      setSelectedQueueId(Number(idParam));
+      return;
+    }
 
-    // Filter entries for current queue
-    const currentQueueEntries = entries
-        .filter(e => e.queueId === selectedQueueId)
+    if (!idParam && queues.length > 0 && selectedQueueId === null) {
+      setSelectedQueueId(queues[0].id);
+      setSearchParams({ id: queues[0].id.toString() });
+    }
+  }, [queues, searchParams, selectedQueueId, setSearchParams]);
+
+  const updateEntries = (updater: (previous: QueueEntry[]) => QueueEntry[]) => {
+    setEntries((previous) => {
+      const next = updater(previous);
+      writeQueueEntries(next);
+      return next;
+    });
+  };
+
+  const handleSelectQueue = (id: number) => {
+    setSelectedQueueId(id);
+    setSearchParams({ id: id.toString() });
+  };
+
+  const currentQueueEntries = useMemo(() => {
+    return entries
+      .filter((entry) => entry.queueId === selectedQueueId && entry.status === "waiting")
+      .sort((a, b) => a.position - b.position);
+  }, [entries, selectedQueueId]);
+
+  const selectedQueue = queues.find((queue) => queue.id === selectedQueueId);
+
+  const handleServeNext = () => {
+    if (!selectedQueueId || currentQueueEntries.length === 0) {
+      return;
+    }
+
+    const nextUser = currentQueueEntries[0];
+    if (!window.confirm(`Serve next patient: ${nextUser.user?.name}?`)) {
+      return;
+    }
+
+    updateEntries((previous) => {
+      const filtered = previous.filter((entry) => entry.userId !== nextUser.userId);
+      const otherQueues = filtered.filter((entry) => entry.queueId !== selectedQueueId);
+      const thisQueue = filtered
+        .filter((entry) => entry.queueId === selectedQueueId)
+        .sort((a, b) => a.position - b.position)
+        .map((item, index) => ({ ...item, position: index + 1 }));
+
+      return [...otherQueues, ...thisQueue];
+    });
+  };
+
+  const handleRemoveUser = (userId: number) => {
+    if (!selectedQueueId || !window.confirm("Are you sure you want to remove this user from the queue?")) {
+      return;
+    }
+
+    updateEntries((previous) => {
+      const filtered = previous.filter((entry) => entry.userId !== userId);
+      const otherQueues = filtered.filter((entry) => entry.queueId !== selectedQueueId);
+      const thisQueue = filtered
+        .filter((entry) => entry.queueId === selectedQueueId)
+        .sort((a, b) => a.position - b.position)
+        .map((item, index) => ({ ...item, position: index + 1 }));
+
+      return [...otherQueues, ...thisQueue];
+    });
+  };
+
+  const onDragEnd = (result: DropResult) => {
+    if (!result.destination || !selectedQueueId) {
+      return;
+    }
+
+    const sourceIndex = result.source.index;
+    const destinationIndex = result.destination.index;
+
+    if (sourceIndex === destinationIndex) {
+      return;
+    }
+
+    updateEntries((previous) => {
+      const queueItems = previous
+        .filter((entry) => entry.queueId === selectedQueueId && entry.status === "waiting")
         .sort((a, b) => a.position - b.position);
+      const [movedItem] = queueItems.splice(sourceIndex, 1);
+      queueItems.splice(destinationIndex, 0, movedItem);
 
-    const selectedQueue = MOCK_QUEUES.find(q => q.id === selectedQueueId);
+      const updatedQueueItems = queueItems.map((item, index) => ({
+        ...item,
+        position: index + 1
+      }));
 
-    const handleServeNext = () => {
-        if (!currentQueueEntries.length) return;
-        const nextUser = currentQueueEntries[0];
+      const otherQueueItems = previous.filter((entry) => entry.queueId !== selectedQueueId);
+      return [...otherQueueItems, ...updatedQueueItems];
+    });
+  };
 
-        if (window.confirm(`Serve next patient: ${nextUser.user?.name}?`)) {
-            setEntries(prev => {
-                // Remove served user from this queue
-                const filtered = prev.filter(e => e.userId !== nextUser.userId);
+  return (
+    <AdminLayout>
+      <div className="mx-auto flex h-full w-full max-w-7xl flex-col gap-6 xl:flex-row">
+        <div className="surface-card w-full overflow-hidden xl:w-[340px]">
+          <div className="border-b border-border bg-muted/60 p-4">
+            <h2 className="text-xl text-foreground">Select Queue</h2>
+          </div>
+          <div className="max-h-[42vh] space-y-2 overflow-y-auto p-3 xl:max-h-[calc(100vh-220px)]">
+            {queues.map((queue) => {
+              const waitingCount = entries.filter((entry) => entry.queueId === queue.id && entry.status === "waiting").length;
+              return (
+                <button
+                  key={queue.id}
+                  onClick={() => handleSelectQueue(queue.id)}
+                  className={`w-full rounded-xl border p-3 text-left transition-all ${selectedQueueId === queue.id
+                      ? "border-accent/30 bg-accent/5 shadow-[0_4px_14px_rgba(0,82,255,0.15)]"
+                      : "border-border bg-card hover:bg-muted/50"
+                    }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <span className="font-semibold text-foreground">{queue.service?.name}</span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${queue.status === "open" ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"
+                        }`}
+                    >
+                      {queue.status}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{queue.service?.priority} Priority</span>
+                    <span>{waitingCount} Waiting</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-                // Reorder remaining in this queue
-                const otherQueues = filtered.filter(e => e.queueId !== selectedQueueId);
-                const thisQueue = filtered.filter(e => e.queueId === selectedQueueId)
-                    .sort((a, b) => a.position - b.position)
-                    .map((item, index) => ({ ...item, position: index + 1 }));
+        <div className="surface-card flex min-h-[58vh] flex-1 flex-col overflow-hidden">
+          {selectedQueue ? (
+            <>
+              <div className="flex flex-col justify-between gap-4 border-b border-border bg-muted/60 p-5 md:flex-row md:items-center">
+                <div>
+                  <h2 className="text-3xl text-foreground">{selectedQueue.service?.name}</h2>
+                  <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                    <span>Duration: {selectedQueue.service?.durationMinutes} min</span>
+                    <span className="hidden md:inline">|</span>
+                    <span>Priority: {selectedQueue.service?.priority}</span>
+                    <span className="hidden md:inline">|</span>
+                    <span>{currentQueueEntries.length} waiting</span>
+                  </div>
+                </div>
+                <Button
+                  variant="success"
+                  onClick={handleServeNext}
+                  disabled={currentQueueEntries.length === 0}
+                  className="w-full md:w-auto"
+                >
+                  Serve Next Patient
+                </Button>
+              </div>
 
-                return [...otherQueues, ...thisQueue];
-            });
-        }
-    };
-
-    const handleRemoveUser = (userId: number) => {
-        if (!window.confirm("Are you sure you want to remove this user from the queue?")) return;
-
-        setEntries(prev => {
-            const filtered = prev.filter(e => e.userId !== userId);
-
-            // Reorder remaining in this queue
-            const otherQueues = filtered.filter(e => e.queueId !== selectedQueueId);
-            const thisQueue = filtered.filter(e => e.queueId === selectedQueueId)
-                .sort((a, b) => a.position - b.position)
-                .map((item, index) => ({ ...item, position: index + 1 }));
-
-            return [...otherQueues, ...thisQueue];
-        });
-    };
-
-    const onDragEnd = (result: DropResult) => {
-        if (!result.destination || !selectedQueueId) return;
-
-        const sourceIndex = result.source.index;
-        const destinationIndex = result.destination.index;
-
-        if (sourceIndex === destinationIndex) return;
-
-        setEntries(prev => {
-            // Get items for current queue
-            const queueItems = prev
-                .filter(e => e.queueId === selectedQueueId)
-                .sort((a, b) => a.position - b.position);
-
-            // Reorder locallay
-            const [reorderedItem] = queueItems.splice(sourceIndex, 1);
-            queueItems.splice(destinationIndex, 0, reorderedItem);
-
-            // Update positions
-            const updatedQueueItems = queueItems.map((item, index) => ({
-                ...item,
-                position: index + 1
-            }));
-
-            // Merge back with other queues
-            const otherQueuesItems = prev.filter(e => e.queueId !== selectedQueueId);
-            return [...otherQueuesItems, ...updatedQueueItems];
-        });
-    };
-
-    return (
-        <AdminLayout>
-            <div className="flex flex-col md:flex-row gap-6 h-[calc(100vh-100px)]">
-                {/* Left Sidebar: List of Queues */}
-                <div className="w-full md:w-1/3 lg:w-1/4 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-                    <div className="p-4 border-b border-gray-100 bg-gray-50">
-                        <h2 className="font-bold text-gray-700">Select Queue</h2>
-                    </div>
-                    <div className="overflow-y-auto flex-1 p-2 space-y-2">
-                        {MOCK_QUEUES.map(queue => (
-                            <button
-                                key={queue.id}
-                                onClick={() => handleSelectQueue(queue.id)}
-                                className={`w-full text-left p-3 rounded-lg border transition-all ${selectedQueueId === queue.id
-                                    ? 'bg-blue-50 border-blue-200 shadow-sm'
-                                    : 'bg-white border-transparent hover:bg-gray-50'
+              <div className="flex-1 overflow-auto bg-muted/30 p-4">
+                <DragDropContext onDragEnd={onDragEnd}>
+                  <Droppable droppableId="queue-list">
+                    {(provided) => (
+                      <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
+                        {currentQueueEntries.length > 0 ? (
+                          currentQueueEntries.map((entry, index) => (
+                            <Draggable key={entry.userId.toString()} draggableId={entry.userId.toString()} index={index}>
+                              {(draggableProvided, snapshot) => (
+                                <div
+                                  ref={draggableProvided.innerRef}
+                                  {...draggableProvided.draggableProps}
+                                  {...draggableProvided.dragHandleProps}
+                                  className={`flex items-center gap-4 rounded-xl border bg-card p-4 transition-all ${snapshot.isDragging
+                                      ? "border-accent/30 shadow-[0_8px_24px_rgba(0,82,255,0.25)]"
+                                      : "border-border hover:border-accent/20"
                                     }`}
-                            >
-                                <div className="flex justify-between items-start">
-                                    <span className="font-semibold text-gray-800">{queue.service?.name}</span>
-                                    <span className={`text-xs px-2 py-0.5 rounded-full ${queue.status === 'open' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                                        }`}>
-                                        {queue.status}
-                                    </span>
+                                >
+                                  <div className="cursor-grab rounded-lg p-1 text-muted-foreground active:cursor-grabbing">
+                                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none">
+                                      <circle cx="9" cy="5" r="1" />
+                                      <circle cx="9" cy="12" r="1" />
+                                      <circle cx="9" cy="19" r="1" />
+                                      <circle cx="15" cy="5" r="1" />
+                                      <circle cx="15" cy="12" r="1" />
+                                      <circle cx="15" cy="19" r="1" />
+                                    </svg>
+                                  </div>
+
+                                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-lg font-semibold text-accent">
+                                    {entry.position}
+                                  </div>
+
+                                  <div className="min-w-0 flex-1">
+                                    <h4 className="truncate font-semibold text-foreground">{entry.user?.name}</h4>
+                                    <p className="truncate text-sm text-muted-foreground">{entry.user?.email}</p>
+                                  </div>
+
+                                  <div className="hidden text-right text-sm text-muted-foreground md:block">
+                                    <div>{new Date(entry.joinTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+                                    <div>{entry.user?.role}</div>
+                                  </div>
+
+                                  <button
+                                    onClick={() => handleRemoveUser(entry.userId)}
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600"
+                                    title="Remove from queue"
+                                  >
+                                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none">
+                                      <path d="M18 6L6 18M6 6l12 12" />
+                                    </svg>
+                                  </button>
                                 </div>
-                                <div className="mt-1 flex justify-between text-xs text-gray-500">
-                                    <span>{queue.service?.priority} Priority</span>
-                                    <span>{entries.filter(e => e.queueId === queue.id).length} Waiting</span>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Right Panel: Selected Queue Details */}
-                <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-                    {selectedQueue ? (
-                        <>
-                            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                                <div>
-                                    <h2 className="text-2xl font-bold text-gray-800">{selectedQueue.service?.name}</h2>
-                                    <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
-                                        <span>Duration: {selectedQueue.service?.durationMinutes} min</span>
-                                        <span>•</span>
-                                        <span>Priority: {selectedQueue.service?.priority}</span>
-                                    </div>
-                                </div>
-                                <div>
-                                    <Button
-                                        variant="success"
-                                        onClick={handleServeNext}
-                                        disabled={currentQueueEntries.length === 0}
-                                    >
-                                        Serve Next Patient
-                                    </Button>
-                                </div>
-                            </div>
-
-                            <div className="flex-1 overflow-auto bg-gray-50/50 p-4">
-                                <DragDropContext onDragEnd={onDragEnd}>
-                                    <Droppable droppableId="queue-list">
-                                        {(provided) => (
-                                            <div
-                                                {...provided.droppableProps}
-                                                ref={provided.innerRef}
-                                                className="space-y-3"
-                                            >
-                                                {currentQueueEntries.length > 0 ? (
-                                                    currentQueueEntries.map((entry, index) => (
-                                                        <Draggable
-                                                            key={entry.userId.toString()}
-                                                            draggableId={entry.userId.toString()}
-                                                            index={index}
-                                                        >
-                                                            {(provided, snapshot) => (
-                                                                <div
-                                                                    ref={provided.innerRef}
-                                                                    {...provided.draggableProps}
-                                                                    {...provided.dragHandleProps}
-                                                                    className={`bg-white p-4 rounded-lg border shadow-sm flex items-center gap-4 transition-shadow ${snapshot.isDragging ? 'shadow-lg ring-2 ring-primary ring-opacity-50 z-50' : 'border-gray-200 hover:border-blue-300'
-                                                                        }`}
-                                                                    style={{
-                                                                        ...provided.draggableProps.style,
-                                                                        left: "auto !important",
-                                                                        top: "auto !important"
-                                                                    }}
-                                                                >
-                                                                    {/* Drag Handle Icon */}
-                                                                    <div className="text-gray-400 cursor-grab active:cursor-grabbing p-1">
-                                                                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                                                                            <circle cx="9" cy="5" r="1" />
-                                                                            <circle cx="9" cy="12" r="1" />
-                                                                            <circle cx="9" cy="19" r="1" />
-                                                                            <circle cx="15" cy="5" r="1" />
-                                                                            <circle cx="15" cy="12" r="1" />
-                                                                            <circle cx="15" cy="19" r="1" />
-                                                                        </svg>
-                                                                    </div>
-
-                                                                    {/* Position Badge */}
-                                                                    <div className="shrink-0 w-10 h-10 rounded-full bg-blue-50 text-primary font-bold flex items-center justify-center text-lg">
-                                                                        {entry.position}
-                                                                    </div>
-
-                                                                    {/* Use Info */}
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <h4 className="font-semibold text-gray-900 truncate">{entry.user?.name}</h4>
-                                                                        <p className="text-sm text-gray-500 truncate">{entry.user?.email}</p>
-                                                                    </div>
-
-                                                                    {/* Meta Info */}
-                                                                    <div className="text-right text-sm text-gray-500 hidden sm:block">
-                                                                        <div>By {entry.user?.role}</div>
-                                                                        <div>{new Date(entry.joinTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                                                                    </div>
-
-                                                                    {/* Actions */}
-                                                                    <div className="border-l pl-4 ml-2">
-                                                                        <button
-                                                                            onClick={() => handleRemoveUser(entry.userId)}
-                                                                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                                                                            title="Remove from queue"
-                                                                        >
-                                                                            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                                                                                <path d="M18 6L6 18M6 6l12 12" />
-                                                                            </svg>
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </Draggable>
-                                                    ))
-                                                ) : (
-                                                    <div className="text-center py-20 text-gray-400 bg-white rounded-lg border border-dashed border-gray-300">
-                                                        <p className="text-lg">No patients in this queue</p>
-                                                    </div>
-                                                )}
-                                                {provided.placeholder}
-                                            </div>
-                                        )}
-                                    </Droppable>
-                                </DragDropContext>
-                            </div>
-                        </>
-                    ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
-                            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                                <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                                </svg>
-                            </div>
-                            <p className="text-xl font-medium text-gray-600">Select a Queue</p>
-                            <p className="text-sm mt-2 text-gray-500">Select a queue from the sidebar to manage patients.</p>
-                        </div>
+                              )}
+                            </Draggable>
+                          ))
+                        ) : (
+                          <div className="rounded-xl border border-dashed border-border bg-card py-16 text-center text-muted-foreground">
+                            <p className="text-lg font-medium">No patients in this queue</p>
+                          </div>
+                        )}
+                        {provided.placeholder}
+                      </div>
                     )}
-                </div>
+                  </Droppable>
+                </DragDropContext>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center p-8 text-center text-muted-foreground">
+              <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </div>
+              <p className="text-2xl text-foreground">Select a Queue</p>
+              <p className="mt-2 text-sm">Select a queue from the left panel to manage patients.</p>
             </div>
-        </AdminLayout>
-    );
+          )}
+        </div>
+      </div>
+    </AdminLayout>
+  );
 }
