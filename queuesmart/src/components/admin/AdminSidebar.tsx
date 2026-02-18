@@ -11,7 +11,8 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
 
   const links = [
     { name: "Dashboard", path: "/admin" },
-    { name: "Manage Queues", path: "/admin/queue" }
+    { name: "Manage Queues", path: "/admin/queue" },
+    { name: "Patients", path: "/admin/patients" },
   ];
 
   return (

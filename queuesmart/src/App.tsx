@@ -6,7 +6,9 @@ import StatusQueue from "./components/pages/StatusQueue"
 import Dashboard from "./components/pages/Dashboard"
 import AdminDashboard from "./components/pages/admin/AdminDashboard"
 import QueueManagement from "./components/pages/admin/QueueManagement"
-
+import History from "./components/pages/History"
+import HistoryDetail from "./components/pages/HistoryDetail"
+import PatientDirectory from "./components/pages/admin/PatientDirectory"
 
 function App() {
   return (
@@ -18,6 +20,9 @@ function App() {
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/admin" element={<AdminDashboard />} />
       <Route path="/admin/queue" element={<QueueManagement />} />
+      <Route path="/admin/patients" element={<PatientDirectory />} />
+      <Route path="/history" element={<History />} />
+      <Route path="/history/:id" element={<HistoryDetail />} />
     </Routes>
   )
 }
