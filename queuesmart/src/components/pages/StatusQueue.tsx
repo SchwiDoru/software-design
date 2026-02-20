@@ -1,125 +1,69 @@
-import Navbar from "../Navbar"; // Added Navbar to match JoinQueue design
-import { Link, useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import Navbar from "../Navbar";
 
 function StatusQueue() {
   const location = useLocation();
-
-  // 1. Initialize states using data passed from JoinQueue
+  const navigate = useNavigate();
+  const [showModal, setShowModal] = useState(location.state?.showSuccessModal || false);
   const [countdown, setCountdown] = useState(location.state?.totalMinutes || 0);
-  const [currentPosition, setCurrentPosition] = useState(location.state?.position || 0);
-  const [tipIndex, setTipIndex] = useState(0);
-  const fullName = location.state?.fullName || "Guest";
+  const [position, setPosition] = useState(location.state?.position || 0);
 
-  const healthTips = [
-    "Fact: Drinking water can boost your metabolism by 24-30%.",
-    "Tip: Take a 5-minute walk for every hour you sit.",
-    "Fact: Your heart beats about 100,000 times a day.",
-    "Tip: Eating slowly helps your brain realize when you're full.",
-    "Fact: Humans are the only species known to blush.",
-    "Tip: 7-9 hours of sleep is essential for long-term health."
-  ];
+  const serviceName = location.state?.serviceName || "General";
 
-  // 2. Cycle of tips (Every 10 seconds)
-  useEffect(() => {
-    const tipTimer = setInterval(() => {
-      setTipIndex((prev) => (prev + 1) % healthTips.length);
-    }, 10000);
-    return () => clearInterval(tipTimer);
-  }, [healthTips.length]);
+  // Clear success modal after user interacts or 5 seconds
+  const dismissModal = () => setShowModal(false);
 
-  // 3. MAIN TIMER: Countdown logic (Simulated: 500ms = 1 minute)
-  useEffect(() => {
-    const clockTimer = setInterval(() => {
-      setCountdown((prevTime: number) => {
-        if (prevTime <= 0) return 0;
-        const newTime = prevTime - 1;
-
-        // Decrease position every 15 simulated minutes
-        if (newTime > 0 && newTime % 15 === 0) {
-          setCurrentPosition((prevPos: number) => (prevPos > 1 ? prevPos - 1 : 1));
-        }
-        return newTime;
-      });
-    }, 500); // Testing speed: 1 min per 0.5 sec
-
-    return () => clearInterval(clockTimer);
-  }, []);
-
-  const formatWaitTime = (totalMin: number) => {
-    if (totalMin <= 0) return "Ready for consultation!";
-    const hours = Math.floor(totalMin / 60);
-    const minutes = totalMin % 60;
-    if (hours === 0) return `${minutes} minutes`;
-    if (minutes === 0) return `${hours} hour${hours > 1 ? "s" : ""}`;
-    return `${hours}h ${minutes}m`;
+  const handleLeave = () => {
+    localStorage.removeItem("activeQueue"); // Unlock queue
+    navigate("/join");
   };
 
-  const expectedTime = new Date(Date.now() + countdown * 60000).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
   return (
-    <div className="min-h-screen bg-blue-50">
+    <div className="min-h-screen bg-blue-50 relative">
       <Navbar />
 
-      <div className="flex flex-col justify-center items-center py-20 relative">
-        
-        {/* TOP Left Corner: Health Facts Overlay */}
-        <div className=" w-full max-w-md p-4 bg-blue-400/10 border border-blue-200 backdrop-blur-md rounded-lg shadow-sm mb-6 transition-all duration-500">
-          <p className="text-blue-800 text-xs font-bold uppercase tracking-tight mb-2">
-            Did you know?
-          </p>
-          <p className="text-blue-900 text-sm italic leading-relaxed">
-            "{healthTips[tipIndex]}"
-          </p>
-        </div>
-
-        {/* Main Status Card - Design matched to JoinQueue */}
-        <div className="bg-white shadow-lg rounded-xl p-10 w-full max-w-md text-center">
-          <h2 className="text-2xl font-bold mb-2">Hello, {fullName}!</h2>
-          <p className="text-gray-600 mb-8">
-            You are currently <span className="text-blue-600 font-bold">#{currentPosition}</span> in line.
-          </p>
-
-          {/* Time Status - Matching the blue box style from JoinQueue */}
-          <div className="bg-blue-100 rounded-lg p-6 mb-8 border border-blue-200 shadow-inner">
-            <div className="mb-4">
-              <p className="text-xs text-blue-500 uppercase font-bold tracking-widest mb-1">
-                Estimated Wait Time
-              </p>
-              <p className="text-2xl font-black text-blue-900">
-                {formatWaitTime(countdown)}
-              </p>
+      {/* SUCCESS MODAL OVERLAY - Matched to image_a82aa5.png */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="flex items-center gap-2 text-blue-600 mb-4">
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
+              <span className="text-xs font-black uppercase tracking-widest">Registration Success</span>
             </div>
-            <div className="pt-4 border-t border-blue-200">
-              <p className="text-xs text-blue-500 uppercase font-bold tracking-widest mb-1">
-                Expected Consultation
-              </p>
-              <p className="text-xl font-bold text-blue-800">
-                {expectedTime}
-              </p>
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">You have joined the line</h2>
+            <p className="text-slate-500 text-sm mb-6">
+              You are assigned to <span className="font-bold text-slate-700">{serviceName}</span>. 
+              Position #{position}. Please stay ready.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={dismissModal} className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold text-sm">I am ready</button>
+              <button onClick={dismissModal} className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold text-sm">Dismiss</button>
             </div>
           </div>
-
-          <button className="w-full bg-red-100 text-red-600 py-3 rounded-lg hover:bg-red-200 transition font-medium active:scale-95">
-            Leave Queue
-          </button>
         </div>
+      )}
 
-        {/* Navigation Link - Matching JoinQueue design */}
-        <div className="mt-6">
-          <Link
-            to="/"
-            className="text-gray-400 hover:text-gray-600 transition-colors text-sm font-medium tracking-wide"
-          >
-            Back to Home Page
-          </Link>
+      {/* MAIN STATUS UI */}
+      <div className="flex flex-col items-center py-20 px-4">
+        <div className="bg-white rounded-3xl p-10 w-full max-w-md shadow-xl text-center">
+            <div className="bg-slate-900 text-white inline-block px-4 py-1 rounded-full text-[10px] font-black uppercase mb-4 tracking-widest">
+                {serviceName} Department
+            </div>
+            <h1 className="text-4xl font-black mb-1">#{position}</h1>
+            <p className="text-slate-400 text-sm mb-8 uppercase font-bold tracking-widest">Your Position</p>
+
+            <div className="bg-blue-50 rounded-2xl p-6 border border-blue-100 mb-8">
+                <p className="text-xs font-bold text-blue-400 uppercase mb-2">Estimated Arrival</p>
+                <p className="text-3xl font-black text-blue-900">{countdown} Minutes</p>
+            </div>
+
+            <button onClick={handleLeave} className="text-red-500 font-bold text-sm hover:underline">
+                Leave Queue
+            </button>
         </div>
       </div>
     </div>
   );
 }
-
 export default StatusQueue;

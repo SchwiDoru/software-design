@@ -24,6 +24,12 @@ function Navbar() {
         </button>
 
         <div className="hidden items-center gap-2 md:flex">
+          <Link 
+            to="/history" 
+            className="rounded-xl px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            History
+          </Link>
           <Link
             to="/join"
             className="rounded-xl px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
