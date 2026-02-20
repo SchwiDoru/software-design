@@ -9,6 +9,7 @@ import QueueManagement from "./components/pages/admin/QueueManagement"
 import History from "./components/pages/History"
 import HistoryDetail from "./components/pages/HistoryDetail"
 import PatientDirectory from "./components/pages/admin/PatientDirectory"
+import PatientDetail from "./components/pages/admin/PatientDetail"
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
       <Route path="/admin" element={<AdminDashboard />} />
       <Route path="/admin/queue" element={<QueueManagement />} />
       <Route path="/admin/patients" element={<PatientDirectory />} />
+      <Route path="/admin/patients/:id" element={<PatientDetail />} />
       <Route path="/history" element={<History />} />
       <Route path="/history/:id" element={<HistoryDetail />} />
     </Routes>

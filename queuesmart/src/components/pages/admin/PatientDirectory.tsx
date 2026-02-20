@@ -2,33 +2,38 @@ import { useState, useMemo } from "react";
 import AdminLayout from "../../admin/AdminLayout";
 import { Search, Calendar, Filter, Phone, User, MoreHorizontal, Mail } from "lucide-react";
 import { Button } from "../../ui/Button";
+import { Link } from "react-router-dom";
+import { usePatientSearchStore } from "../../../data/patientSearchStore";
 
 // Mock Data for the table
 const mockPatients = [
-  { id: "USR-001", name: "Alice Brown", email: "alice@example.com", phone: "555-0101", lastVisit: "2026-02-18", lastService: "General Consultation", status: "Active" },
-  { id: "USR-002", name: "Bob Wilson", email: "bob@example.com", phone: "555-0102", lastVisit: "2026-02-17", lastService: "Blood Work", status: "Active" },
-  { id: "USR-003", name: "Jane Smith", email: "jane@example.com", phone: "555-0103", lastVisit: "2026-02-18", lastService: "Vaccination", status: "Pending" },
+  { id: "1", name: "Alice Brown", email: "alice@example.com", phone: "555-0101", lastVisit: "2026-02-18", lastService: "General Consultation", status: "Active" },
+  { id: "2", name: "Bob Wilson", email: "bob@example.com", phone: "555-0102", lastVisit: "2026-02-17", lastService: "Blood Work", status: "Active" },
+  { id: "3", name: "Jane Smith", email: "jane@example.com", phone: "555-0103", lastVisit: "2026-02-18", lastService: "Vaccination", status: "Pending" },
 ];
 
 export default function PatientDirectory() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchType, setSearchType] = useState<"name" | "phone">("name");
-  const [serviceFilter, setServiceFilter] = useState("any");
-  const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
+  // 1. Hook into your existing store
+const { 
+  searchQuery, setSearchQuery, 
+  searchType, setSearchType, 
+  serviceFilter, setServiceFilter,
+  dateFilter, setDateFilter 
+} = usePatientSearchStore();
 
   // Filtering Logic
   const filteredPatients = useMemo(() => {
-    return mockPatients.filter(p => {
-      const matchesSearch = searchType === "name" 
-        ? p.name.toLowerCase().includes(searchQuery.toLowerCase())
-        : p.phone.includes(searchQuery);
-      
-      const matchesService = serviceFilter === "any" || p.lastService === serviceFilter;
-      const matchesDate = !dateFilter || p.lastVisit === dateFilter;
+      return mockPatients.filter(p => {
+        const matchesSearch = searchType === "name" 
+          ? p.name.toLowerCase().includes(searchQuery.toLowerCase())
+          : p.phone.includes(searchQuery);
+        
+        const matchesService = serviceFilter === "any" || p.lastService === serviceFilter;
+        const matchesDate = !dateFilter || p.lastVisit === dateFilter;
 
-      return matchesSearch && matchesService && matchesDate;
-    });
-  }, [searchQuery, searchType, serviceFilter, dateFilter]);
+        return matchesSearch && matchesService && matchesDate;
+      });
+    }, [searchQuery, searchType, serviceFilter, dateFilter]);
 
   return (
     <AdminLayout>
@@ -59,6 +64,7 @@ export default function PatientDirectory() {
                 />
                 <select 
                   className="bg-background text-[10px] font-bold uppercase py-1 px-2 rounded border border-border"
+                  value={searchType}
                   onChange={(e) => setSearchType(e.target.value as any)}
                 >
                   <option value="name">Name</option>
@@ -134,7 +140,11 @@ export default function PatientDirectory() {
                     <p className="text-xs text-muted-foreground">{patient.lastVisit}</p>
                   </td>
                   <td className="p-4 text-right">
-                    <Button variant="secondary" size="sm">View History</Button>
+                    <Link to={`/admin/patients/${patient.id}`}>
+                      <Button variant="secondary" size="sm">
+                        Details
+                      </Button>
+                    </Link>
                   </td>
                 </tr>
               ))}
