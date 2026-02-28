@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   frontend:
     build: 
@@ -6,12 +5,49 @@ services:
       target: dev
     image: queuesmart-frontend:dev
     container_name: queuesmart-frontend-dev
-    volumes:
-      - ./queuesmart:/app
-      - /app/node_modules
-    command: >
-          sh -c "npm install && npm run dev"    
+    develop:
+      watch:
+        - action: rebuild
+          path: ./queuesmart/package.json
+        - action: rebuild
+          path: ./queuesmart/package-lock.json
+        - action: rebuild
+          path: ./queuesmart/Dockerfile
+        - action: rebuild
+          path: ./queuesmart/vite.config.ts
+
+        - action: sync
+          path: ./queuesmart
+          target: /app
+          ignore:
+            - node_modules
+            - .git
+            - dist
     ports:
       - "5173:5173"
+  backend:
+    build:
+      context: ./backend
+      target: dev
+    image: queuesmart-backend:dev
+    container_name: queuesmart-backend-dev
+    develop:
+      watch:
+        - action: sync
+          path: ./backend
+          target: /source
+          ignore:
+            - bin/
+            - obj/
+            - .git/
+            - backend.csproj
+            - Dockerfile
+            
+        - action: rebuild
+          path: ./backend/backend.csproj
+        - action: rebuild
+          path: ./backend/Dockerfile
+    ports:
+      - 8080:8080
     environment:
-      - CHOKIDAR_USEPOLLING=true  
+      - ASPNETCORE_ENVIRONMENT=Development

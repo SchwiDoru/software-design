@@ -12,12 +12,20 @@ Before running the project, make sure Docker is installed on your machine:
 docker --version
 ```
 
-### Start Development Services
+## Start Development Services
+
+> **Note:** Make sure Docker Desktop is running before starting the containers.
+
 ```bash
 npm run docker:dev
 ```
 
-### Stop Development Services
+Once running, the services will be available at:
+
+- **Frontend:** http://localhost:5173
+- **Backend:** http://localhost:8080
+
+## Stop Development Services
 
 ```bash
 npm run docker:stop
