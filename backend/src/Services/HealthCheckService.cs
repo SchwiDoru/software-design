@@ -11,26 +11,26 @@ public class HealthCheckService
     {
         _healthCheck = new HealthCheck
         {
-            environment = env.EnvironmentName,
-            status = HealthStatus.Healthy,
-            timeStamp = DateTime.UtcNow
+            Environment = env.EnvironmentName,
+            Status = HealthStatus.Healthy,
+            TimeStamp = DateTime.UtcNow
         };
     }
 
     public HealthCheckDTO GetHealthCheck()
     {
         string status = "";
-        if(_healthCheck.status == HealthStatus.Healthy)
+        if(_healthCheck.Status == HealthStatus.Healthy)
         {
             status = "Server Online";
         }
         var healthCheckDTO = new HealthCheckDTO
         {
             status = status,
-            timeStamp = _healthCheck.timeStamp
+            timeStamp = _healthCheck.TimeStamp
 
         };
-        Console.WriteLine($"SERVER RUNNING IN {_healthCheck.environment} MODE");
+        Console.WriteLine($"SERVER RUNNING IN {_healthCheck.Environment} MODE");
         return healthCheckDTO;
     }
 }

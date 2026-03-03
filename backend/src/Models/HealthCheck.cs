@@ -6,7 +6,7 @@ public enum HealthStatus
 }
 public class HealthCheck
 {
-    public DateTime timeStamp {get; set;}
-    public string? environment {get; set;}
-    public HealthStatus status {get; set;}
+    public DateTime TimeStamp {get; set;}
+    public string? Environment {get; set;}
+    public HealthStatus Status {get; set;}
 }
