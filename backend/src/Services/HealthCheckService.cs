@@ -26,8 +26,8 @@ public class HealthCheckService
         }
         var healthCheckDTO = new HealthCheckDTO
         {
-            status = status,
-            timeStamp = _healthCheck.TimeStamp
+            Status = status,
+            TimeStamp = _healthCheck.TimeStamp
 
         };
         Console.WriteLine($"SERVER RUNNING IN {_healthCheck.Environment} MODE");
