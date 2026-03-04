@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Backend.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,8 +16,11 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 });
 
 
-builder.Services.AddControllers();
-
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
 var app = builder.Build();
 
 var port = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") ?? "8080";
