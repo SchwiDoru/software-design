@@ -12,4 +12,4 @@ FROM base AS dev
 
 ENV ASPNETCORE_URLS=http://0.0.0.0:8080
 
-CMD ["dotnet", "watch", "run", "--no-launch-profile"]
+CMD ["dotnet", "watch", "run", "--no-launch-profile", "--non-interactive"]
