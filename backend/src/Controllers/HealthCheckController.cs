@@ -1,6 +1,5 @@
+namespace Backend.Controllers;
 
-
-using System.Security.Cryptography.X509Certificates;
 using Backend.DTOs;
 using Backend.Services;
 using Microsoft.AspNetCore.Mvc;
