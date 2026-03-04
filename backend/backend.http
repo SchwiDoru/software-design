@@ -1,5 +1,8 @@
 @backend_HostAddress = https://localhost:7294
 
+# Uncomment if running docker dev container
+# @backend_HostAddress = https://localhost:8080
+
 GET {{backend_HostAddress}}/
 Accept: application/json
 
