@@ -1,0 +1,73 @@
+using Backend.Constants;
+using Backend.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace Backend.Services;
+
+public class QueueService
+{
+    private readonly AppDbContext _dbContext;
+
+    public QueueService(AppDbContext dbContext)
+    {
+        _dbContext = dbContext;
+    }
+
+    public async Task<Queue?> GetQueueById(int id)
+    {
+        try
+        {
+            return await _dbContext.Queues
+                .Include(q => q.Service)
+                .FirstOrDefaultAsync(q => q.Id == id);
+        }
+        catch(Exception err)
+        {
+            throw new Exception("Unexpected error occurred when getting queue by ID: ", err);
+        }
+    }
+    public async Task<List<Queue>> GetQueues()
+    {
+        try
+        {
+            return await _dbContext.Queues.Include(q => q.Service).ToListAsync();
+        }
+        catch(Exception err)
+        {
+            throw new Exception("Unexpected Error getting queues: ", err);
+        }
+
+    }
+
+    public async Task<Queue> CreateQueue(Queue queue)
+    {
+        if (queue == null)
+        {
+            throw new ArgumentNullException(nameof(queue), "Error creating queue: queue can't be empty");
+        }
+        if (!Enum.IsDefined(typeof(QueueStatus), queue.Status))
+        {
+            throw new ArgumentException("Error creating queue: queue status is invalid", nameof(queue.Status));
+        }
+
+        try
+        {
+            var serviceExists = await _dbContext.Services.AnyAsync(s => s.Id == queue.ServiceId);
+            if (!serviceExists)
+            {
+                throw new KeyNotFoundException($"Service with ID {queue.ServiceId} was not found");
+            }
+
+            await _dbContext.Queues.AddAsync(queue);
+            await _dbContext.SaveChangesAsync();
+
+            return await _dbContext.Queues
+                .Include(q => q.Service)
+                .FirstAsync(q => q.Id == queue.Id);
+        }
+        catch(Exception err)
+        {
+            throw new Exception("Unexpected error occurred when creating a new queue: ", err);
+        }
+    }
+}
