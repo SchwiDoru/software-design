@@ -112,7 +112,7 @@ function Home() {
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{queue.service?.description}</p>
                 <div className="mt-4 flex items-center justify-between text-sm">
                   <span className="rounded-full bg-accent/10 px-3 py-1 text-accent">{queue.service?.priority} Priority</span>
-                  <span className="text-muted-foreground">{queue.service?.durationMinutes} min</span>
+                  <span className="text-muted-foreground">{queue.service?.duration} min</span>
                 </div>
               </article>
             ))}

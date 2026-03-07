@@ -78,7 +78,7 @@ export default function Dashboard() {
 
   const queuePosition = currentEntry?.position ?? null;
   const estimatedMinutes = currentEntry
-    ? (currentEntry.position - 1) * (currentQueue?.service?.durationMinutes ?? 15)
+    ? (currentEntry.position - 1) * (currentQueue?.service?.duration ?? 15)
     : 0;
   const openQueues = queues.filter((queue) => queue.status === "open");
 
@@ -315,7 +315,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <p className="font-mono text-xs uppercase tracking-[0.15em] text-background/70">Duration</p>
-                <p className="mt-2 text-2xl">{currentQueue?.service?.durationMinutes ?? 0} min</p>
+                <p className="mt-2 text-2xl">{currentQueue?.service?.duration ?? 0} min</p>
               </div>
               <div>
                 <p className="font-mono text-xs uppercase tracking-[0.15em] text-background/70">Queue status</p>

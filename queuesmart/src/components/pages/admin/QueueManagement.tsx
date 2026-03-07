@@ -167,7 +167,7 @@ export default function QueueManagement() {
                 <div>
                   <h2 className="text-3xl text-foreground">{selectedQueue.service?.name}</h2>
                   <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                    <span>Duration: {selectedQueue.service?.durationMinutes} min</span>
+                    <span>Duration: {selectedQueue.service?.duration} min</span>
                     <span className="hidden md:inline">|</span>
                     <span>Priority: {selectedQueue.service?.priority}</span>
                     <span className="hidden md:inline">|</span>

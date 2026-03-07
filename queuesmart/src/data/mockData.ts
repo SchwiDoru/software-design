@@ -10,7 +10,7 @@ export const MOCK_QUEUES: Queue[] = [
             id: 101,
             name: 'General Consultation',
             description: 'Standard check-up with a GP',
-            durationMinutes: 15,
+            duration: 15,
             priority: 'Medium'
         }
     },
@@ -23,7 +23,7 @@ export const MOCK_QUEUES: Queue[] = [
             id: 102,
             name: 'Emergency Room',
             description: 'Urgent care for critical conditions',
-            durationMinutes: 30,
+            duration: 30,
             priority: 'High'
         }
     },
@@ -36,7 +36,7 @@ export const MOCK_QUEUES: Queue[] = [
             id: 103,
             name: 'Vaccination',
             description: 'Flu shots and other vaccines',
-            durationMinutes: 5,
+            duration: 5,
             priority: 'Low'
         }
     }
