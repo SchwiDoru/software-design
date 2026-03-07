@@ -4,11 +4,11 @@ import { QueueCard } from "../../admin/QueueCard";
 import { Button } from "../../ui/Button";
 import { ServiceFormModal } from "../../admin/ServiceFormModal";
 import type { Queue, QueueEntry, Service } from "../../../types";
-import { readQueueEntries, readQueues, subscribeQueueStore, writeQueues } from "../../../data/queueStore";
+import { readQueueEntries } from "../../../data/queueStore";
 
 export default function AdminDashboard() {
   const [queues, setQueues] = useState<Queue[]>([]);
-  const [entries, setEntries] = useState<QueueEntry[]>(readQueueEntries);
+  const [entries] = useState<QueueEntry[]>(readQueueEntries);
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
 
@@ -36,16 +36,8 @@ export default function AdminDashboard() {
     return entries.filter((entry) => entry.queueId === queueId && entry.status === "waiting").length;
   };
 
-  const updateQueues = (updater: (previous: Queue[]) => Queue[]) => {
-    setQueues((previous) => {
-      const next = updater(previous);
-      writeQueues(next);
-      return next;
-    });
-  };
-
   const handleToggleStatus = (queueId: number, currentStatus: string) => {
-    updateQueues((previous) =>
+    setQueues((previous) =>
       previous.map((queue) =>
         queue.id === queueId
           ? { ...queue, status: currentStatus === "open" ? "closed" : "open" }
@@ -68,40 +60,95 @@ export default function AdminDashboard() {
     setIsServiceModalOpen(true);
   };
 
-  const handleSaveService = (serviceData: Partial<Service>) => {
+  const handleSaveService = async (serviceData: Partial<Service>) => {
     if (editingService) {
-      updateQueues((previous) =>
-        previous.map((queue) => {
-          if (queue.service && queue.service.id === editingService.id) {
-            return {
-              ...queue,
-              service: {
-                ...queue.service,
-                ...serviceData
-              } as Service
-            };
-          }
-          return queue;
-        })
-      );
-      setEditingService(null);
-    } else {
-      const newServiceId = Date.now() + 100;
-      const newQueue: Queue = {
-        id: Date.now(),
-        serviceId: newServiceId,
-        status: "open",
-        createdAt: new Date().toISOString(),
-        service: {
-          id: newServiceId,
-          name: serviceData.name || "New Service",
-          description: serviceData.description || "",
-          duration: serviceData.duration || 15,
-          priority: serviceData.priority || "Medium"
-        }
-      };
+      try {
+        const serviceResponse = await fetch(`${import.meta.env.VITE_API_URL}/service/${editingService.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: serviceData.name ?? editingService.name,
+            description: serviceData.description ?? editingService.description,
+            duration: serviceData.duration ?? editingService.duration,
+            priority: serviceData.priority ?? editingService.priority,
+          }),
+        });
 
-      updateQueues((previous) => [...previous, newQueue]);
+        if (!serviceResponse.ok) {
+          throw new Error(`Failed to update service: ${serviceResponse.status}`);
+        }
+
+        const updatedService = await serviceResponse.json();
+
+        setQueues((previous) =>
+          previous.map((queue) => {
+            if (queue.service && queue.service.id === editingService.id) {
+              return {
+                ...queue,
+                service: {
+                  ...queue.service,
+                  ...updatedService,
+                } as Service,
+              };
+            }
+            return queue;
+          })
+        );
+
+        setEditingService(null);
+      } catch (error) {
+        console.error("Error updating service:", error);
+        alert("Failed to update service. Please try again.");
+        return;
+      }
+    } else {
+      try {
+        // Step 1: Create the service
+        const serviceResponse = await fetch(`${import.meta.env.VITE_API_URL}/service`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: serviceData.name || "New Service",
+            description: serviceData.description || "",
+            duration: serviceData.duration || 15,
+            priority: serviceData.priority || "Medium",
+          }),
+        });
+
+        if (!serviceResponse.ok) {
+          throw new Error(`Failed to create service: ${serviceResponse.status}`);
+        }
+
+        const createdService = await serviceResponse.json();
+
+        // Step 2: Create the queue with the new service ID
+        const queueResponse = await fetch(`${import.meta.env.VITE_API_URL}/queue`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            status: "Open",
+            serviceId: createdService.id,
+          }),
+        });
+
+        if (!queueResponse.ok) {
+          throw new Error(`Failed to create queue: ${queueResponse.status}`);
+        }
+
+        const createdQueue = await queueResponse.json();
+
+        // Step 3: Add the new queue to state
+        setQueues((previous) => [...previous, createdQueue]);
+      } catch (error) {
+        console.error("Error creating service and queue:", error);
+        alert("Failed to create service. Please try again.");
+      }
     }
 
     setIsServiceModalOpen(false);

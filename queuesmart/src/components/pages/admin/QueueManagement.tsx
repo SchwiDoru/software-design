@@ -5,17 +5,35 @@ import type { DropResult } from "@hello-pangea/dnd";
 import AdminLayout from "../../admin/AdminLayout";
 import { Button } from "../../ui/Button";
 import type { Queue, QueueEntry } from "../../../types";
-import { readQueueEntries, readQueues, subscribeQueueStore, writeQueueEntries } from "../../../data/queueStore";
+import { readQueueEntries, subscribeQueueStore, writeQueueEntries } from "../../../data/queueStore";
 
 export default function QueueManagement() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedQueueId, setSelectedQueueId] = useState<number | null>(null);
-  const [queues, setQueues] = useState<Queue[]>(readQueues);
+  const [queues, setQueues] = useState<Queue[]>([]);
   const [entries, setEntries] = useState<QueueEntry[]>(readQueueEntries);
 
   useEffect(() => {
+    const fetchQueues = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/queue`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setQueues(data);
+      } catch (error) {
+        console.error("Error fetching queues:", error);
+        setQueues([]);
+      }
+    };
+
+    fetchQueues();
+  }, []);
+
+  useEffect(() => {
     return subscribeQueueStore(() => {
-      setQueues(readQueues());
       setEntries(readQueueEntries());
     });
   }, []);
