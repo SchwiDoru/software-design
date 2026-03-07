@@ -7,16 +7,29 @@ import type { Queue, QueueEntry, Service } from "../../../types";
 import { readQueueEntries, readQueues, subscribeQueueStore, writeQueues } from "../../../data/queueStore";
 
 export default function AdminDashboard() {
-  const [queues, setQueues] = useState<Queue[]>(readQueues);
+  const [queues, setQueues] = useState<Queue[]>([]);
   const [entries, setEntries] = useState<QueueEntry[]>(readQueueEntries);
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
 
   useEffect(() => {
-    return subscribeQueueStore(() => {
-      setQueues(readQueues());
-      setEntries(readQueueEntries());
-    });
+    const fetchQueues = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/queue`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        setQueues(data);
+      } catch (error) {
+        console.error("Error fetching queues:", error);
+        setQueues([]);
+      }
+    };
+    
+    fetchQueues();
   }, []);
 
   const getWaitingCount = (queueId: number) => {
@@ -83,7 +96,7 @@ export default function AdminDashboard() {
           id: newServiceId,
           name: serviceData.name || "New Service",
           description: serviceData.description || "",
-          durationMinutes: serviceData.durationMinutes || 15,
+          duration: serviceData.duration || 15,
           priority: serviceData.priority || "Medium"
         }
       };
@@ -170,7 +183,7 @@ export default function AdminDashboard() {
                     <tr key={service.id} className="transition-colors hover:bg-muted/50">
                       <td className="p-4 font-medium text-foreground">{service.name}</td>
                       <td className="hidden p-4 text-sm text-muted-foreground md:table-cell">{service.description}</td>
-                      <td className="p-4 text-center text-sm text-muted-foreground">{service.durationMinutes} min</td>
+                      <td className="p-4 text-center text-sm text-muted-foreground">{service.duration} min</td>
                       <td className="p-4 text-center">
                         <span
                           className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${service.priority === "High"

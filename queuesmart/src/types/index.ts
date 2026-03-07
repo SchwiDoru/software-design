@@ -17,7 +17,7 @@ export interface Service {
     id: number;
     name: string; // Max 100 chars
     description: string;
-    durationMinutes: number; // Expected Duration
+    duration: number; // Expected Duration
     priority: Priority;
 }
 
