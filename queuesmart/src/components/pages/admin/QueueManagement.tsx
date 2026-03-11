@@ -5,18 +5,22 @@ import type { DropResult } from "@hello-pangea/dnd";
 import AdminLayout from "../../admin/AdminLayout";
 import { Button } from "../../ui/Button";
 import type { Queue, QueueEntry } from "../../../types";
-import { readQueueEntries, subscribeQueueStore, writeQueueEntries } from "../../../data/queueStore";
 
 export default function QueueManagement() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedQueueId, setSelectedQueueId] = useState<number | null>(null);
   const [queues, setQueues] = useState<Queue[]>([]);
-  const [entries, setEntries] = useState<QueueEntry[]>(readQueueEntries);
+  const [entries, setEntries] = useState<QueueEntry[]>([]);
 
   useEffect(() => {
     const fetchQueues = async () => {
       try {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/queue`);
+        if (response.status === 204) {
+          setQueues([]);
+          return;
+        }
+
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -33,9 +37,27 @@ export default function QueueManagement() {
   }, []);
 
   useEffect(() => {
-    return subscribeQueueStore(() => {
-      setEntries(readQueueEntries());
-    });
+    const fetchQueueEntries = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/queueentry`);
+        if (response.status === 204) {
+          setEntries([]);
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setEntries(data);
+      } catch (error) {
+        console.error("Error fetching queue entries:", error);
+        setEntries([]);
+      }
+    };
+
+    fetchQueueEntries();
   }, []);
 
   useEffect(() => {
@@ -53,9 +75,7 @@ export default function QueueManagement() {
 
   const updateEntries = (updater: (previous: QueueEntry[]) => QueueEntry[]) => {
     setEntries((previous) => {
-      const next = updater(previous);
-      writeQueueEntries(next);
-      return next;
+      return updater(previous);
     });
   };
 
@@ -66,11 +86,31 @@ export default function QueueManagement() {
 
   const currentQueueEntries = useMemo(() => {
     return entries
-      .filter((entry) => entry.queueId === selectedQueueId && entry.status === "waiting")
+      .filter((entry) => entry.queueId === selectedQueueId && entry.status === "Waiting")
       .sort((a, b) => a.position - b.position);
   }, [entries, selectedQueueId]);
 
   const selectedQueue = queues.find((queue) => queue.id === selectedQueueId);
+
+  const formatJoinTime = (joinTime: string) => {
+    const date = new Date(joinTime);
+    if (Number.isNaN(date.getTime())) {
+      return joinTime;
+    }
+
+    return new Intl.DateTimeFormat(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    }).format(date);
+  };
+
+  const priorityBadgeClasses: Record<QueueEntry["priority"], string> = {
+    High: "bg-red-50 text-red-700",
+    Medium: "bg-amber-50 text-amber-700",
+    Low: "bg-emerald-50 text-emerald-700"
+  };
 
   const handleServeNext = () => {
     if (!selectedQueueId || currentQueueEntries.length === 0) {
@@ -94,7 +134,7 @@ export default function QueueManagement() {
     });
   };
 
-  const handleRemoveUser = (userId: number) => {
+  const handleRemoveUser = (userId: string) => {
     if (!selectedQueueId || !window.confirm("Are you sure you want to remove this user from the queue?")) {
       return;
     }
@@ -125,7 +165,7 @@ export default function QueueManagement() {
 
     updateEntries((previous) => {
       const queueItems = previous
-        .filter((entry) => entry.queueId === selectedQueueId && entry.status === "waiting")
+        .filter((entry) => entry.queueId === selectedQueueId && entry.status === "Waiting")
         .sort((a, b) => a.position - b.position);
       const [movedItem] = queueItems.splice(sourceIndex, 1);
       queueItems.splice(destinationIndex, 0, movedItem);
@@ -149,7 +189,7 @@ export default function QueueManagement() {
           </div>
           <div className="max-h-[42vh] space-y-2 overflow-y-auto p-3 xl:max-h-[calc(100vh-220px)]">
             {queues.map((queue) => {
-              const waitingCount = entries.filter((entry) => entry.queueId === queue.id && entry.status === "waiting").length;
+              const waitingCount = entries.filter((entry) => entry.queueId === queue.id && entry.status === "Waiting").length;
               return (
                 <button
                   key={queue.id}
@@ -238,10 +278,15 @@ export default function QueueManagement() {
                                   <div className="min-w-0 flex-1">
                                     <h4 className="truncate font-semibold text-foreground">{entry.user?.name}</h4>
                                     <p className="truncate text-sm text-muted-foreground">{entry.user?.email}</p>
+                                    <span
+                                      className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${priorityBadgeClasses[entry.priority]}`}
+                                    >
+                                      {entry.priority} Priority
+                                    </span>
                                   </div>
 
                                   <div className="hidden text-right text-sm text-muted-foreground md:block">
-                                    <div>{new Date(entry.joinTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+                                    <div>{formatJoinTime(entry.joinTime)}</div>
                                     <div>{entry.user?.role}</div>
                                   </div>
 
