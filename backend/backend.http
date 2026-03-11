@@ -47,8 +47,39 @@ POST {{backend_HostAddress}}/queue
 Accept: application/json
 Content-Type: application/json
 
-# DateOnly must be in yyyy-MM-dd format
 {
   "Status": "Open",
   "ServiceId": 1
+}
+
+###
+GET {{backend_HostAddress}}/queueentry
+Accept: application/json
+
+###
+POST {{backend_HostAddress}}/queueentry
+Accept: application/json
+Content-Type: application/json
+
+{
+    "Position": 1,
+    "Status": "Waiting",
+    "Priority": "Low",
+    "QueueId": 1,
+    "UserId": "darrenfr83@gmail.com",
+    "Description": null
+}
+
+###
+POST {{backend_HostAddress}}/queueentry
+Accept: application/json
+Content-Type: application/json
+
+{
+    "Position": 2,
+    "Status": "Waiting",
+    "Priority": "Low",
+    "QueueId": 1,
+    "UserId": "test@gmail.com",
+    "Description": "Chest pain"
 }
