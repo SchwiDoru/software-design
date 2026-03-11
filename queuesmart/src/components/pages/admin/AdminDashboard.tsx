@@ -4,11 +4,10 @@ import { QueueCard } from "../../admin/QueueCard";
 import { Button } from "../../ui/Button";
 import { ServiceFormModal } from "../../admin/ServiceFormModal";
 import type { Queue, QueueEntry, Service } from "../../../types";
-import { readQueueEntries } from "../../../data/queueStore";
 
 export default function AdminDashboard() {
   const [queues, setQueues] = useState<Queue[]>([]);
-  const [entries] = useState<QueueEntry[]>(readQueueEntries);
+  const [entries, setEntries] = useState<QueueEntry[]>([]);
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
 
@@ -28,8 +27,24 @@ export default function AdminDashboard() {
         setQueues([]);
       }
     };
+    const fetchQueueEntries = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/queueentry`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        setEntries(data);
+      } catch (error) {
+        console.error("Error fetching queues:", error);
+        setEntries([]);
+      }
+    };
     
     fetchQueues();
+    fetchQueueEntries();
   }, []);
 
   const getWaitingCount = (queueId: number) => {
