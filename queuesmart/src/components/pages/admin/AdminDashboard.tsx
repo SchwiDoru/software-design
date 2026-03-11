@@ -170,6 +170,7 @@ export default function AdminDashboard() {
   };
 
   const totalWaiting = entries.filter((entry) => entry.status === "Waiting").length;
+  const totalPending = entries.filter((entry) => entry.status === "Pending").length;
   const openQueues = queues.filter((queue) => queue.status === "open").length;
 
   return (
@@ -205,8 +206,8 @@ export default function AdminDashboard() {
             <p className="mt-3 text-3xl font-semibold text-foreground">{totalWaiting}</p>
           </div>
           <div className="surface-card p-5">
-            <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Notifications</p>
-            <p className="mt-3 text-3xl font-semibold text-foreground">{openQueues > 0 ? openQueues : 0}</p>
+            <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Pending Patients</p>
+            <p className="mt-3 text-3xl font-semibold text-foreground">{totalPending}</p>
           </div>
         </div>
 
