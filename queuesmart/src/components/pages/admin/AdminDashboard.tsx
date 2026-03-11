@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AdminLayout from "../../admin/AdminLayout";
 import { QueueCard } from "../../admin/QueueCard";
 import { Button } from "../../ui/Button";
@@ -6,6 +7,7 @@ import { ServiceFormModal } from "../../admin/ServiceFormModal";
 import type { Queue, QueueEntry, Service } from "../../../types";
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [queues, setQueues] = useState<Queue[]>([]);
   const [entries, setEntries] = useState<QueueEntry[]>([]);
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
@@ -193,22 +195,38 @@ export default function AdminDashboard() {
         </div>
 
         <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <div className="surface-card p-5">
+          <button
+            type="button"
+            onClick={() => navigate("/admin")}
+            className="surface-card p-5 text-left transition-colors hover:bg-muted/40"
+          >
             <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Total Services</p>
             <p className="mt-3 text-3xl font-semibold text-foreground">{queues.length}</p>
-          </div>
-          <div className="surface-card p-5">
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/admin/queue")}
+            className="surface-card p-5 text-left transition-colors hover:bg-muted/40"
+          >
             <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Open Queues</p>
             <p className="mt-3 text-3xl font-semibold text-foreground">{openQueues}</p>
-          </div>
-          <div className="surface-card p-5">
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/admin/queue")}
+            className="surface-card p-5 text-left transition-colors hover:bg-muted/40"
+          >
             <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Patients Waiting</p>
             <p className="mt-3 text-3xl font-semibold text-foreground">{totalWaiting}</p>
-          </div>
-          <div className="surface-card p-5">
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/admin/pending")}
+            className="surface-card p-5 text-left transition-colors hover:bg-muted/40"
+          >
             <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Pending Patients</p>
             <p className="mt-3 text-3xl font-semibold text-foreground">{totalPending}</p>
-          </div>
+          </button>
         </div>
 
         <div className="mb-14 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
