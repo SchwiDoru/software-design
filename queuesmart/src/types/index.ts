@@ -1,6 +1,6 @@
 export type Priority = 'High' | 'Medium' | 'Low';
 export type QueueStatus = 'open' | 'closed';
-export type QueueEntryStatus = 'waiting' | 'served' | 'cancelled';
+export type QueueEntryStatus = 'Waiting' | 'Served' | 'Cancelled' | "Pending";
 export type UserRole = 'Admin' | 'Patient' | 'Staff';
 
 // User & Profile (Combined for convenience in frontend display)
@@ -34,12 +34,13 @@ export interface Queue {
 // Queue Entry (User in a Queue)
 export interface QueueEntry {
     queueId: number;
-    userId: number;
+    userId: string;
     // Joined user details for display
     user?: User;
     position: number;
     joinTime: string; // ISO Date string
     status: QueueEntryStatus;
+    priority: Priority;
 }
 
 // Admin Dashboard specific types
