@@ -4,6 +4,7 @@ import JoinQueue from "./components/pages/JoinQueue"
 import StatusQueue from "./components/pages/StatusQueue"
 import Dashboard from "./components/pages/Dashboard"
 import AdminDashboard from "./components/pages/admin/AdminDashboard"
+import PendingQueueEntries from "./components/pages/admin/PendingQueueEntries"
 import QueueManagement from "./components/pages/admin/QueueManagement"
 import History from "./components/pages/History"
 import HistoryDetail from "./components/pages/HistoryDetail"
@@ -38,6 +39,7 @@ function App() {
       {/* Admin Routes */}
       <Route path="/admin" element={<AdminDashboard />} />
       <Route path="/admin/queue" element={<QueueManagement />} />
+      <Route path="/admin/pending" element={<PendingQueueEntries />} />
       <Route path="/admin/patients" element={<PatientDirectory />} />
       <Route path="/admin/patients/:id" element={<PatientDetail />} />
       

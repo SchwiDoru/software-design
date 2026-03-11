@@ -41,6 +41,7 @@ export interface QueueEntry {
     joinTime: string; // ISO Date string
     status: QueueEntryStatus;
     priority: Priority;
+    description?: string;
 }
 
 // Admin Dashboard specific types
