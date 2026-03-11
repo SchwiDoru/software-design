@@ -33,7 +33,7 @@ export default function AdminDashboard() {
   }, []);
 
   const getWaitingCount = (queueId: number) => {
-    return entries.filter((entry) => entry.queueId === queueId && entry.status === "waiting").length;
+    return entries.filter((entry) => entry.queueId === queueId && entry.status === "Waiting").length;
   };
 
   const handleToggleStatus = (queueId: number, currentStatus: string) => {
@@ -154,7 +154,7 @@ export default function AdminDashboard() {
     setIsServiceModalOpen(false);
   };
 
-  const totalWaiting = entries.filter((entry) => entry.status === "waiting").length;
+  const totalWaiting = entries.filter((entry) => entry.status === "Waiting").length;
   const openQueues = queues.filter((queue) => queue.status === "open").length;
 
   return (

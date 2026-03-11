@@ -22,7 +22,7 @@ const MOCK_HISTORY = [
     type: "Blood Test",
     doctor: "Lab Tech Alpha",
     notes: "Routine checkup. All vitals within normal range. Slight Vitamin D deficiency.",
-    status: "waiting"
+    status: "Waiting"
   }
 ];
 export default function PatientDetail() {
@@ -35,7 +35,7 @@ const [entries, setEntries] = useState([
   ...readQueueEntries(),
   { 
     userId: id, 
-    status: "waiting", 
+    status: "Waiting", 
     position: 3, 
     user: { name: "Test Patient", email: "test@example.com" } 
   }
@@ -158,7 +158,7 @@ const [entries, setEntries] = useState([
           <div className="lg:col-span-1 space-y-6">
             <div className="surface-card p-6 border-l-4 border-accent">
               <h2 className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-4">Live Controls</h2>
-              {currentEntry && currentEntry.status === "waiting" ? (
+              {currentEntry && currentEntry.status === "Waiting" ? (
                 <div className="space-y-3">
                   <div className="bg-muted/30 rounded-xl p-4 mb-4">
                     <p className="text-sm text-muted-foreground">Currently Waiting in:</p>

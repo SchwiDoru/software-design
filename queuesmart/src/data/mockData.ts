@@ -43,8 +43,40 @@ export const MOCK_QUEUES: Queue[] = [
 ];
 
 export const MOCK_ENTRIES: QueueEntry[] = [
-    { queueId: 1, userId: 201, position: 1, joinTime: new Date(Date.now() - 30 * 60000).toISOString(), status: 'waiting', user: { id: 201, name: 'John Doe', email: 'john@example.com', role: 'Patient' } },
-    { queueId: 1, userId: 202, position: 2, joinTime: new Date(Date.now() - 20 * 60000).toISOString(), status: 'waiting', user: { id: 202, name: 'Jane Smith', email: 'jane@example.com', role: 'Patient' } },
-    { queueId: 2, userId: 204, position: 1, joinTime: new Date(Date.now() - 10 * 60000).toISOString(), status: 'waiting', user: { id: 204, name: 'Alice Brown', email: 'alice@example.com', role: 'Patient' } },
-    { queueId: 1, userId: 203, position: 3, joinTime: new Date(Date.now() - 5 * 60000).toISOString(), status: 'waiting', user: { id: 203, name: 'Bob Wilson', email: 'bob@example.com', role: 'Patient' } }
+    {
+        queueId: 1,
+        userId: 'john@example.com',
+        position: 1,
+        joinTime: new Date(Date.now() - 30 * 60000).toISOString(),
+        status: 'Waiting',
+        priority: 'Medium',
+        user: { id: 201, name: 'John Doe', email: 'john@example.com', role: 'Patient' }
+    },
+    {
+        queueId: 1,
+        userId: 'jane@example.com',
+        position: 2,
+        joinTime: new Date(Date.now() - 20 * 60000).toISOString(),
+        status: 'Waiting',
+        priority: 'Low',
+        user: { id: 202, name: 'Jane Smith', email: 'jane@example.com', role: 'Patient' }
+    },
+    {
+        queueId: 2,
+        userId: 'alice@example.com',
+        position: 1,
+        joinTime: new Date(Date.now() - 10 * 60000).toISOString(),
+        status: 'Waiting',
+        priority: 'High',
+        user: { id: 204, name: 'Alice Brown', email: 'alice@example.com', role: 'Patient' }
+    },
+    {
+        queueId: 1,
+        userId: 'bob@example.com',
+        position: 3,
+        joinTime: new Date(Date.now() - 5 * 60000).toISOString(),
+        status: 'Waiting',
+        priority: 'Medium',
+        user: { id: 203, name: 'Bob Wilson', email: 'bob@example.com', role: 'Patient' }
+    }
 ];

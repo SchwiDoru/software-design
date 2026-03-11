@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { MOCK_ENTRIES, MOCK_QUEUES } from "../../data/mockData";
 
 function Home() {
-  const totalWaiting = MOCK_ENTRIES.filter((entry) => entry.status === "waiting").length;
+  const totalWaiting = MOCK_ENTRIES.filter((entry) => entry.status === "Waiting").length;
   const activeServices = MOCK_QUEUES.filter((queue) => queue.status === "open");
 
   return (
