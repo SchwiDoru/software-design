@@ -60,7 +60,7 @@ using (var scope = app.Services.CreateScope())
         dbContext.UserProfiles.Add(new UserProfile
         {
             Email = "test@gmail.com",
-            Name = "Alex Queue",
+            Name = "Alex",
             PhoneNumber = null
         });
         Console.WriteLine("✅ Default user created: test@gmail.com");

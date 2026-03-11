@@ -1,3 +1,4 @@
+using Backend.DTO;
 using Backend.Models;
 using Backend.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -76,6 +77,44 @@ public class QueueEntryController: ControllerBase
             Console.WriteLine($"Error in QueueEntryController.CreateQueueEntryController: {err.Message}");
             Console.WriteLine($"Stack Trace: {err.StackTrace}");
             return StatusCode(500, new { error = "Unexpected error creating queue entry" });
+        }
+    }
+
+    [HttpPut("{queueId:int}/{userId}")]
+    public async Task<ActionResult<QueueEntry>> UpdateQueueEntryController(int queueId, string userId, UpdateQueueEntryDTO queueEntry)
+    {
+        try
+        {
+            var updatedQueueEntry = await _queueEntryService.UpdateQueueEntry(
+                queueId,
+                userId,
+                queueEntry.Status,
+                queueEntry.Priority
+            );
+
+            return Ok(updatedQueueEntry);
+        }
+        catch (KeyNotFoundException err)
+        {
+            return NotFound(new { error = err.Message });
+        }
+        catch (ArgumentNullException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch (ArgumentOutOfRangeException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch (ArgumentException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch(Exception err)
+        {
+            Console.WriteLine($"Error in QueueEntryController.UpdateQueueEntryController: {err.Message}");
+            Console.WriteLine($"Stack Trace: {err.StackTrace}");
+            return StatusCode(500, new { error = "Unexpected error updating queue entry" });
         }
     }
 }

@@ -77,7 +77,7 @@ Content-Type: application/json
 
 {
     "Position": 2,
-    "Status": "Waiting",
+    "Status": "Pending",
     "Priority": "Low",
     "QueueId": 1,
     "UserId": "test@gmail.com",
