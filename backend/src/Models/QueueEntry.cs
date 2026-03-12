@@ -7,7 +7,7 @@ namespace Backend.Models;
 [PrimaryKey(nameof(QueueId), nameof(UserId))]
 public class QueueEntry
 {
-    public int Position {get; set;}
+    public int? Position {get; set;}
     public DateTime JoinTime {get; set;}
     public QueueEntryStatus Status {get; set;}
     public PriorityLevel Priority {get; set;}
