@@ -62,10 +62,7 @@ Accept: application/json
 Content-Type: application/json
 
 {
-    "Position": 1,
-    "Status": "Waiting",
-    "Priority": "Low",
-    "QueueId": 1,
+    "QueueId": 2,
     "UserId": "darrenfr83@gmail.com",
     "Description": null
 }
@@ -76,10 +73,7 @@ Accept: application/json
 Content-Type: application/json
 
 {
-    "Position": 2,
-    "Status": "Pending",
-    "Priority": "Low",
-    "QueueId": 1,
+    "QueueId": 2,
     "UserId": "test@gmail.com",
     "Description": "Chest pain"
 }

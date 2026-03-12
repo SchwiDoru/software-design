@@ -12,6 +12,136 @@ public class QueueEntryServices
     {
         _dbContext = dbContext;
     }
+        private async Task<int> CalculateQueueEntryPosition(QueueEntry queueEntry)
+    {
+        if (queueEntry == null)
+        {
+            throw new ArgumentNullException(nameof(queueEntry), "Queue entry cannot be null");
+        }
+        if (queueEntry.QueueId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(queueEntry.QueueId), "Queue ID must be greater than 0");
+        }
+        if (!Enum.IsDefined(typeof(PriorityLevel), queueEntry.Priority))
+        {
+            throw new ArgumentException(
+                "Error queue entry priority level isn't valid: priority must be (High, Medium, or Low)",
+                nameof(queueEntry.Priority)
+            );
+        }
+        if (queueEntry.Status != QueueEntryStatus.Waiting)
+        {
+            throw new ArgumentException("Queue entry position is only calculated for entries in Waiting status", nameof(queueEntry.Status));
+        }
+        if (string.IsNullOrWhiteSpace(queueEntry.UserId))
+        {
+            throw new ArgumentException("Error queue entry user id (email) is required", nameof(queueEntry.UserId));
+        }
+
+        var normalizedUserId = queueEntry.UserId.Trim();
+        var joinTime = queueEntry.JoinTime;
+
+        try
+        {
+            var higherRankedEntriesCount = await _dbContext.QueueEntries
+                .Where(existingQueueEntry => existingQueueEntry.QueueId == queueEntry.QueueId && existingQueueEntry.Status == QueueEntryStatus.Waiting)
+                .CountAsync(existingQueueEntry =>
+                    existingQueueEntry.Priority > queueEntry.Priority ||
+                    (existingQueueEntry.Priority == queueEntry.Priority && existingQueueEntry.JoinTime < joinTime) ||
+                    (existingQueueEntry.Priority == queueEntry.Priority && existingQueueEntry.JoinTime == joinTime && string.Compare(existingQueueEntry.UserId, normalizedUserId, StringComparison.Ordinal) < 0));
+
+            return higherRankedEntriesCount;
+        }
+        catch (Exception err)
+        {
+            throw new Exception("Unexpected error calculating queue entry position: ", err);
+        }
+    }
+
+    private async Task RecalculateQueuePositions(int queueId, string userId, int? previousPosition, int? newPosition)
+    {
+        var normalizedUserId = userId.Trim();
+
+        if (newPosition.HasValue && !previousPosition.HasValue)
+        {
+            var insertedEntries = await _dbContext.QueueEntries
+                .Where(queueEntry =>
+                    queueEntry.QueueId == queueId &&
+                    queueEntry.Status == QueueEntryStatus.Waiting &&
+                    queueEntry.UserId != normalizedUserId &&
+                    queueEntry.Position != null &&
+                    queueEntry.Position >= newPosition.Value)
+                .ToListAsync();
+
+            foreach (var queueEntry in insertedEntries)
+            {
+                queueEntry.Position += 1;
+            }
+
+            return;
+        }
+
+        if (!newPosition.HasValue && previousPosition.HasValue)
+        {
+            var removedEntries = await _dbContext.QueueEntries
+                .Where(queueEntry =>
+                    queueEntry.QueueId == queueId &&
+                    queueEntry.Status == QueueEntryStatus.Waiting &&
+                    queueEntry.UserId != normalizedUserId &&
+                    queueEntry.Position != null &&
+                    queueEntry.Position > previousPosition.Value)
+                .ToListAsync();
+
+            foreach (var queueEntry in removedEntries)
+            {
+                queueEntry.Position -= 1;
+            }
+
+            return;
+        }
+
+        if (!previousPosition.HasValue || !newPosition.HasValue || previousPosition == newPosition)
+        {
+            return;
+        }
+
+        if (newPosition.Value < previousPosition.Value)
+        {
+            var movedUpEntries = await _dbContext.QueueEntries
+                .Where(queueEntry =>
+                    queueEntry.QueueId == queueId &&
+                    queueEntry.Status == QueueEntryStatus.Waiting &&
+                    queueEntry.UserId != normalizedUserId &&
+                    queueEntry.Position != null &&
+                    queueEntry.Position >= newPosition.Value &&
+                    queueEntry.Position < previousPosition.Value)
+                .ToListAsync();
+
+            foreach (var queueEntry in movedUpEntries)
+            {
+                queueEntry.Position += 1;
+            }
+
+            return;
+        }
+
+        var movedDownEntries = await _dbContext.QueueEntries
+            .Where(queueEntry =>
+                queueEntry.QueueId == queueId &&
+                queueEntry.Status == QueueEntryStatus.Waiting &&
+                queueEntry.UserId != normalizedUserId &&
+                queueEntry.Position != null &&
+                queueEntry.Position > previousPosition.Value &&
+                queueEntry.Position <= newPosition.Value)
+            .ToListAsync();
+
+        foreach (var queueEntry in movedDownEntries)
+        {
+            queueEntry.Position -= 1;
+        }
+    }
+
+
 
     public async Task<List<QueueEntry>> GetQueueEntries()
     {
@@ -20,11 +150,76 @@ public class QueueEntryServices
             return await _dbContext.QueueEntries
                                     .Include(qe => qe.Queue)
                                     .Include(qe => qe.User)
+                                    .OrderBy(qe => qe.Position)
                                     .ToListAsync();
         }
         catch(Exception err)
         {
             throw new Exception("Unexpected error getting queue entries: ", err);
+        }
+    }
+
+    public async Task<QueueEntry> UpdateQueueEntryPosition(int queueId, string userId, int position)
+    {
+        if (queueId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(queueId), "Queue ID must be greater than 0");
+        }
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("Queue entry user id (email) is required", nameof(userId));
+        }
+        if (position < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(position), "Position must be zero-based and cannot be negative");
+        }
+
+        var normalizedUserId = userId.Trim();
+
+        try
+        {
+            var existingQueueEntry = await _dbContext.QueueEntries
+                .Include(qe => qe.Queue)
+                .Include(qe => qe.User)
+                .FirstOrDefaultAsync(qe => qe.QueueId == queueId && qe.UserId == normalizedUserId);
+
+            if (existingQueueEntry == null)
+            {
+                throw new KeyNotFoundException($"Queue entry for queue ID {queueId} and user '{normalizedUserId}' was not found");
+            }
+
+            if (existingQueueEntry.Status != QueueEntryStatus.Waiting || existingQueueEntry.Position == null)
+            {
+                throw new ArgumentException("Only waiting queue entries with a position can be reordered", nameof(userId));
+            }
+
+            var waitingEntriesCount = await _dbContext.QueueEntries.CountAsync(qe => qe.QueueId == queueId && qe.Status == QueueEntryStatus.Waiting);
+            if (position >= waitingEntriesCount)
+            {
+                throw new ArgumentOutOfRangeException(nameof(position), "Position must be within the waiting queue range");
+            }
+
+            var previousPosition = existingQueueEntry.Position;
+            existingQueueEntry.Position = position;
+
+            await _dbContext.SaveChangesAsync();
+
+            await RecalculateQueuePositions(queueId, normalizedUserId, previousPosition, existingQueueEntry.Position);
+            await _dbContext.SaveChangesAsync();
+
+            return existingQueueEntry;
+        }
+        catch (KeyNotFoundException)
+        {
+            throw;
+        }
+        catch (ArgumentException)
+        {
+            throw;
+        }
+        catch(Exception err)
+        {
+            throw new Exception("Unexpected error updating queue entry position: ", err);
         }
     }
 
@@ -47,10 +242,6 @@ public class QueueEntryServices
                 "Error queue entry priority level isn't valid: status must be (High, Medium, or Low)",
                 nameof(queueEntry.Priority)
             );
-        }
-        if (queueEntry.Position <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(queueEntry.Position), "Error queue entry position must be greater than 0");
         }
         if (string.IsNullOrWhiteSpace(queueEntry.UserId))
         {
@@ -132,9 +323,36 @@ public class QueueEntryServices
                 throw new KeyNotFoundException($"UserProfile with Email '{normalizedUserId}' was not found");
             }
 
+            var previousStatus = existingQueueEntry.Status;
+            var previousPosition = existingQueueEntry.Position;
+
             existingQueueEntry.Status = status;
             existingQueueEntry.Priority = priority;
 
+            if (status == QueueEntryStatus.Waiting)
+            {
+                if (existingQueueEntry.Position == null)
+                {
+                    existingQueueEntry.JoinTime = DateTime.UtcNow;
+                }
+
+                existingQueueEntry.Position = await CalculateQueueEntryPosition(existingQueueEntry);
+            }
+            else
+            {
+                existingQueueEntry.Position = null;
+            }
+
+            if (previousStatus != QueueEntryStatus.Waiting)
+            {
+                previousPosition = null;
+            }
+
+            var updatedPosition = status == QueueEntryStatus.Waiting ? existingQueueEntry.Position : null;
+
+            await _dbContext.SaveChangesAsync();
+
+            await RecalculateQueuePositions(queueId, normalizedUserId, previousPosition, updatedPosition);
             await _dbContext.SaveChangesAsync();
             return existingQueueEntry;
         }

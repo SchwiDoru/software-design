@@ -1,3 +1,4 @@
+using Backend.Constants;
 using Backend.DTO;
 using Backend.Models;
 using Backend.Services;
@@ -36,18 +37,18 @@ public class QueueEntryController: ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<QueueEntry>> CreateQueueEntryController(QueueEntry queueEntry)
+    public async Task<ActionResult<QueueEntry>> CreateQueueEntryController(CreateQueueEntryDTO queueEntryDto)
     {
         try
         {
             var modifyQueueEntry = new QueueEntry{
                 JoinTime = DateTime.UtcNow,
-                Position = queueEntry.Position,
-                Status = queueEntry.Status,
-                Priority = queueEntry.Priority,
-                QueueId = queueEntry.QueueId,
-                UserId = queueEntry.UserId,
-                Description = queueEntry.Description
+                Position = null,
+                Status = QueueEntryStatus.Pending,
+                Priority = PriorityLevel.Low, 
+                QueueId = queueEntryDto.QueueId,
+                UserId = queueEntryDto.UserId,
+                Description = queueEntryDto.Description
             };
             var createdQueueEntry = await _queueEntryService.CreateQueueEntry(modifyQueueEntry);
 
@@ -81,15 +82,15 @@ public class QueueEntryController: ControllerBase
     }
 
     [HttpPut("{queueId:int}/{userId}")]
-    public async Task<ActionResult<QueueEntry>> UpdateQueueEntryController(int queueId, string userId, UpdateQueueEntryDTO queueEntry)
+    public async Task<ActionResult<QueueEntry>> UpdateQueueEntryController(int queueId, string userId, UpdateQueueEntryDTO queueEntryDto)
     {
         try
         {
             var updatedQueueEntry = await _queueEntryService.UpdateQueueEntry(
                 queueId,
                 userId,
-                queueEntry.Status,
-                queueEntry.Priority
+                queueEntryDto.Status,
+                queueEntryDto.Priority
             );
 
             return Ok(updatedQueueEntry);
@@ -115,6 +116,43 @@ public class QueueEntryController: ControllerBase
             Console.WriteLine($"Error in QueueEntryController.UpdateQueueEntryController: {err.Message}");
             Console.WriteLine($"Stack Trace: {err.StackTrace}");
             return StatusCode(500, new { error = "Unexpected error updating queue entry" });
+        }
+    }
+
+    [HttpPut("{queueId:int}/{userId}/position")]
+    public async Task<ActionResult<QueueEntry>> UpdateQueueEntryPositionController(int queueId, string userId, UpdateQueueEntryPositionDTO queueEntryDto)
+    {
+        try
+        {
+            var updatedQueueEntry = await _queueEntryService.UpdateQueueEntryPosition(
+                queueId,
+                userId,
+                queueEntryDto.Position
+            );
+
+            return Ok(updatedQueueEntry);
+        }
+        catch (KeyNotFoundException err)
+        {
+            return NotFound(new { error = err.Message });
+        }
+        catch (ArgumentNullException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch (ArgumentOutOfRangeException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch (ArgumentException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch(Exception err)
+        {
+            Console.WriteLine($"Error in QueueEntryController.UpdateQueueEntryPositionController: {err.Message}");
+            Console.WriteLine($"Stack Trace: {err.StackTrace}");
+            return StatusCode(500, new { error = "Unexpected error updating queue entry position" });
         }
     }
 }
