@@ -6,11 +6,35 @@ import AdminLayout from "../../admin/AdminLayout";
 import { Button } from "../../ui/Button";
 import type { Queue, QueueEntry } from "../../../types";
 
+type QueueOrderSnapshot = {
+  userId: string;
+  position: number;
+};
+
+const createQueueOrderSnapshots = (queueEntries: QueueEntry[]) => {
+  return queueEntries.reduce<Record<number, QueueOrderSnapshot[]>>((snapshots, entry) => {
+    if (entry.status !== "Waiting") {
+      return snapshots;
+    }
+
+    const existingSnapshots = snapshots[entry.queueId] ?? [];
+    existingSnapshots.push({
+      userId: entry.userId,
+      position: entry.position
+    });
+    snapshots[entry.queueId] = existingSnapshots.sort((left, right) => left.position - right.position);
+
+    return snapshots;
+  }, {});
+};
+
 export default function QueueManagement() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedQueueId, setSelectedQueueId] = useState<number | null>(null);
   const [queues, setQueues] = useState<Queue[]>([]);
   const [entries, setEntries] = useState<QueueEntry[]>([]);
+  const [savedQueueOrders, setSavedQueueOrders] = useState<Record<number, QueueOrderSnapshot[]>>({});
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
 
   useEffect(() => {
     const fetchQueues = async () => {
@@ -51,9 +75,11 @@ export default function QueueManagement() {
 
         const data = await response.json();
         setEntries(data);
+        setSavedQueueOrders(createQueueOrderSnapshots(data));
       } catch (error) {
         console.error("Error fetching queue entries:", error);
         setEntries([]);
+        setSavedQueueOrders({});
       }
     };
 
@@ -90,6 +116,36 @@ export default function QueueManagement() {
       .sort((a, b) => a.position - b.position);
   }, [entries, selectedQueueId]);
 
+  const hasPendingReorder = useMemo(() => {
+    if (!selectedQueueId) {
+      return false;
+    }
+
+    const savedOrder = savedQueueOrders[selectedQueueId] ?? [];
+    if (savedOrder.length !== currentQueueEntries.length) {
+      return false;
+    }
+
+    return currentQueueEntries.some((entry, index) => {
+      const savedEntry = savedOrder[index];
+      return !savedEntry || savedEntry.userId !== entry.userId || savedEntry.position !== entry.position;
+    });
+  }, [currentQueueEntries, savedQueueOrders, selectedQueueId]);
+
+  useEffect(() => {
+    if (!selectedQueueId) {
+      return;
+    }
+
+    console.log(
+      "Current queue entry state positions",
+      currentQueueEntries.map((entry) => ({
+        userId: entry.userId,
+        position: entry.position
+      }))
+    );
+  }, [currentQueueEntries, selectedQueueId]);
+
   const selectedQueue = queues.find((queue) => queue.id === selectedQueueId);
 
   const formatJoinTime = (joinTime: string) => {
@@ -112,6 +168,78 @@ export default function QueueManagement() {
     Low: "bg-emerald-50 text-emerald-700"
   };
 
+  const handleResetOrder = () => {
+    if (!selectedQueueId) {
+      return;
+    }
+
+    const savedOrder = savedQueueOrders[selectedQueueId] ?? [];
+    if (savedOrder.length === 0) {
+      return;
+    }
+
+    const savedPositionsByUserId = new Map(savedOrder.map((entry) => [entry.userId, entry.position]));
+
+    updateEntries((previous) => {
+      return previous.map((entry) => {
+        if (entry.queueId !== selectedQueueId || entry.status !== "Waiting") {
+          return entry;
+        }
+
+        const savedPosition = savedPositionsByUserId.get(entry.userId);
+        if (savedPosition === undefined) {
+          return entry;
+        }
+
+        return {
+          ...entry,
+          position: savedPosition
+        };
+      });
+    });
+  };
+
+  const handleConfirmOrder = async () => {
+    if (!selectedQueueId || !hasPendingReorder) {
+      return;
+    }
+
+    setIsSavingOrder(true);
+
+    try {
+      const orderedEntries = [...currentQueueEntries].sort((left, right) => left.position - right.position);
+
+      for (const entry of orderedEntries) {
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL}/queueentry/${selectedQueueId}/${encodeURIComponent(entry.userId)}/position`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ position: entry.position })
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+      }
+
+      setSavedQueueOrders((previous) => ({
+        ...previous,
+        [selectedQueueId]: orderedEntries.map((entry) => ({
+          userId: entry.userId,
+          position: entry.position
+        }))
+      }));
+    } catch (error) {
+      console.error("Error saving queue order:", error);
+    } finally {
+      setIsSavingOrder(false);
+    }
+  };
+
   const handleServeNext = () => {
     if (!selectedQueueId || currentQueueEntries.length === 0) {
       return;
@@ -128,7 +256,7 @@ export default function QueueManagement() {
       const thisQueue = filtered
         .filter((entry) => entry.queueId === selectedQueueId)
         .sort((a, b) => a.position - b.position)
-        .map((item, index) => ({ ...item, position: index + 1 }));
+        .map((item, index) => ({ ...item, position: index }));
 
       return [...otherQueues, ...thisQueue];
     });
@@ -145,7 +273,7 @@ export default function QueueManagement() {
       const thisQueue = filtered
         .filter((entry) => entry.queueId === selectedQueueId)
         .sort((a, b) => a.position - b.position)
-        .map((item, index) => ({ ...item, position: index + 1 }));
+        .map((item, index) => ({ ...item, position: index }));
 
       return [...otherQueues, ...thisQueue];
     });
@@ -172,7 +300,7 @@ export default function QueueManagement() {
 
       const updatedQueueItems = queueItems.map((item, index) => ({
         ...item,
-        position: index + 1
+        position: index
       }));
 
       const otherQueueItems = previous.filter((entry) => entry.queueId !== selectedQueueId);
@@ -232,14 +360,32 @@ export default function QueueManagement() {
                     <span>{currentQueueEntries.length} waiting</span>
                   </div>
                 </div>
-                <Button
-                  variant="success"
-                  onClick={handleServeNext}
-                  disabled={currentQueueEntries.length === 0}
-                  className="w-full md:w-auto"
-                >
-                  Serve Next Patient
-                </Button>
+                <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row">
+                  <Button
+                    variant="secondary"
+                    onClick={handleResetOrder}
+                    disabled={!hasPendingReorder || isSavingOrder}
+                    className="w-full md:w-auto"
+                  >
+                    Reset Order
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleConfirmOrder}
+                    disabled={!hasPendingReorder || isSavingOrder}
+                    className="w-full md:w-auto"
+                  >
+                    {isSavingOrder ? "Saving Order..." : "Confirm Order"}
+                  </Button>
+                  <Button
+                    variant="success"
+                    onClick={handleServeNext}
+                    disabled={currentQueueEntries.length === 0 || isSavingOrder}
+                    className="w-full md:w-auto"
+                  >
+                    Serve Next Patient
+                  </Button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-auto bg-muted/30 p-4">
@@ -272,7 +418,7 @@ export default function QueueManagement() {
                                   </div>
 
                                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-lg font-semibold text-accent">
-                                    {entry.position}
+                                    {entry.position + 1}
                                   </div>
 
                                   <div className="min-w-0 flex-1">
