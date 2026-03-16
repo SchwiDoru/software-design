@@ -1,6 +1,6 @@
 export type Priority = 'High' | 'Medium' | 'Low';
 export type QueueStatus = 'open' | 'closed';
-export type QueueEntryStatus = 'Waiting' | 'Served' | 'Cancelled' | "Pending";
+export type QueueEntryStatus = 'Waiting' | 'Served' | 'Cancelled' | 'Pending' | 'InProgress';
 export type UserRole = 'Admin' | 'Patient' | 'Staff';
 
 // User & Profile (Combined for convenience in frontend display)

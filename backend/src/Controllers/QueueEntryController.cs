@@ -155,4 +155,42 @@ public class QueueEntryController: ControllerBase
             return StatusCode(500, new { error = "Unexpected error updating queue entry position" });
         }
     }
+
+    [HttpPut("{queueId:int}/{userId}/status")]
+    public async Task<ActionResult<QueueEntry>> UpdateQueueEntryStatusController(int queueId, string userId, UpdateQueueEntryStatusDTO queueEntryDto)
+    {
+        try
+        {
+            var updatedQueueEntry = await _queueEntryService.UpdateQueueEntryStatus(
+                queueId,
+                userId,
+                queueEntryDto.Status
+            );
+
+            return Ok(updatedQueueEntry);
+        }
+        catch (KeyNotFoundException err)
+        {
+            return NotFound(new { error = err.Message });
+        }
+        catch (ArgumentNullException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch (ArgumentOutOfRangeException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch (ArgumentException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch(Exception err)
+        {
+            Console.WriteLine($"Error in QueueEntryController.UpdateQueueEntryStatusController: {err.Message}");
+            Console.WriteLine($"Stack Trace: {err.StackTrace}");
+            return StatusCode(500, new { error = "Unexpected error updating queue entry status" });
+        }
+    }
+
 }

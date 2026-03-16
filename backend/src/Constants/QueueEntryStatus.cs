@@ -5,5 +5,8 @@ public enum QueueEntryStatus
     Waiting,
     Served, 
     Cancelled, 
-    Pending
+    Pending,
+    InProgress, 
+    Removed,
+    Completed
 }

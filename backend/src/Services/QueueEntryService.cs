@@ -222,6 +222,84 @@ public class QueueEntryServices
             throw new Exception("Unexpected error updating queue entry position: ", err);
         }
     }
+    public async Task<QueueEntry> UpdateQueueEntryStatus(int queueId, string userId, QueueEntryStatus status)
+    {
+        if (queueId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(queueId), "Queue ID must be greater than 0");
+        }
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("Queue entry user id (email) is required", nameof(userId));
+        }
+        if (!Enum.IsDefined(typeof(QueueEntryStatus), status))
+        {
+            throw new ArgumentException(
+                "Error queue entry status isn't valid: status must be (Waiting, Served, Cancelled, Pending)",
+                nameof(status)
+            );
+        }
+
+        var normalizedUserId = userId.Trim();
+
+        try
+        {
+            var existingQueueEntry = await _dbContext.QueueEntries
+                .Include(qe => qe.Queue)
+                .Include(qe => qe.User)
+                .FirstOrDefaultAsync(qe => qe.QueueId == queueId && qe.UserId == normalizedUserId);
+
+            if (existingQueueEntry == null)
+            {
+                throw new KeyNotFoundException($"Queue entry for queue ID {queueId} and user '{normalizedUserId}' was not found");
+            }
+
+            var previousStatus = existingQueueEntry.Status;
+            var previousPosition = existingQueueEntry.Position;
+
+            existingQueueEntry.Status = status;
+
+            if (status == QueueEntryStatus.Waiting)
+            {
+                if (existingQueueEntry.Position == null)
+                {
+                    existingQueueEntry.JoinTime = DateTime.UtcNow;
+                }
+
+                existingQueueEntry.Position = await CalculateQueueEntryPosition(existingQueueEntry);
+            }
+            else
+            {
+                existingQueueEntry.Position = null;
+            }
+
+            if (previousStatus != QueueEntryStatus.Waiting)
+            {
+                previousPosition = null;
+            }
+
+            var updatedPosition = status == QueueEntryStatus.Waiting ? existingQueueEntry.Position : null;
+
+            await _dbContext.SaveChangesAsync();
+
+            await RecalculateQueuePositions(queueId, normalizedUserId, previousPosition, updatedPosition);
+            await _dbContext.SaveChangesAsync();
+
+            return existingQueueEntry;
+        }
+        catch (KeyNotFoundException)
+        {
+            throw;
+        }
+        catch (ArgumentException)
+        {
+            throw;
+        }
+        catch(Exception err)
+        {
+            throw new Exception("Unexpected error updating queue entry status: ", err);
+        }
+    }
 
     public async Task<QueueEntry> CreateQueueEntry(QueueEntry queueEntry)
     {

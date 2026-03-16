@@ -4,7 +4,7 @@ import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import type { DropResult } from "@hello-pangea/dnd";
 import AdminLayout from "../../admin/AdminLayout";
 import { Button } from "../../ui/Button";
-import type { Queue, QueueEntry } from "../../../types";
+import type { Queue, QueueEntry, QueueEntryStatus } from "../../../types";
 
 type QueueOrderSnapshot = {
   userId: string;
@@ -240,18 +240,33 @@ export default function QueueManagement() {
     }
   };
 
-  const handleServeNext = () => {
+  const handleServeNext = async () => {
     if (!selectedQueueId || currentQueueEntries.length === 0) {
       return;
     }
 
     const nextUser = currentQueueEntries[0];
-    if (!window.confirm(`Serve next patient: ${nextUser.user?.name}?`)) {
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/queueentry/${selectedQueueId}/${encodeURIComponent(nextUser.userId)}/status`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "InProgress" satisfies QueueEntryStatus })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    } catch (error) {
+      console.error("Error updating queue entry status:", error);
       return;
     }
 
     updateEntries((previous) => {
-      const filtered = previous.filter((entry) => entry.userId !== nextUser.userId);
+      const filtered = previous.filter((entry) => !(entry.userId === nextUser.userId && entry.queueId === selectedQueueId));
       const otherQueues = filtered.filter((entry) => entry.queueId !== selectedQueueId);
       const thisQueue = filtered
         .filter((entry) => entry.queueId === selectedQueueId)
