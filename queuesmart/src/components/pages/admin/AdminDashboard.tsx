@@ -17,7 +17,12 @@ export default function AdminDashboard() {
     const fetchQueues = async () => {
       try {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/queue`);
-        
+
+        if (response.status === 204) {
+          setQueues([]);
+          return;
+        }
+
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -32,7 +37,12 @@ export default function AdminDashboard() {
     const fetchQueueEntries = async () => {
       try {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/queueentry`);
-        
+
+        if (response.status === 204) {
+          setEntries([]);
+          return;
+        }
+
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
