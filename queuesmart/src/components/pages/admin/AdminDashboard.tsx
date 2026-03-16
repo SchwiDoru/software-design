@@ -4,14 +4,17 @@ import AdminLayout from "../../admin/AdminLayout";
 import { QueueCard } from "../../admin/QueueCard";
 import { Button } from "../../ui/Button";
 import { ServiceFormModal } from "../../admin/ServiceFormModal";
-import type { Queue, QueueEntry, Service } from "../../../types";
+import type { Queue, QueueEntry, QueueStatus, Service } from "../../../types";
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [queues, setQueues] = useState<Queue[]>([]);
   const [entries, setEntries] = useState<QueueEntry[]>([]);
+  const [savedQueueStatuses, setSavedQueueStatuses] = useState<Record<number, QueueStatus>>({});
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
+  const [pendingQueueStatuses, setPendingQueueStatuses] = useState<Record<number, QueueStatus>>({});
+  const [isApplyingQueueStatus, setIsApplyingQueueStatus] = useState(false);
 
   useEffect(() => {
     const fetchQueues = async () => {
@@ -27,11 +30,18 @@ export default function AdminDashboard() {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        const data = await response.json();
+        const data: Queue[] = await response.json();
         setQueues(data);
+        setSavedQueueStatuses(
+          data.reduce<Record<number, QueueStatus>>((statuses, queue) => {
+            statuses[queue.id] = queue.status;
+            return statuses;
+          }, {})
+        );
       } catch (error) {
         console.error("Error fetching queues:", error);
         setQueues([]);
+        setSavedQueueStatuses({});
       }
     };
     const fetchQueueEntries = async () => {
@@ -64,13 +74,84 @@ export default function AdminDashboard() {
   };
 
   const handleToggleStatus = (queueId: number, currentStatus: string) => {
+    const nextStatus: QueueStatus = currentStatus === "Open" ? "Closed" : "Open";
+
     setQueues((previous) =>
       previous.map((queue) =>
         queue.id === queueId
-          ? { ...queue, status: currentStatus === "Open" ? "Closed" : "Open" }
+          ? { ...queue, status: nextStatus }
           : queue
       )
     );
+
+    setPendingQueueStatuses((previous) => {
+      const originalStatus = savedQueueStatuses[queueId];
+
+      if (originalStatus && nextStatus === originalStatus)
+      {
+        const { [queueId]: _, ...remainingStatuses } = previous;
+        return remainingStatuses;
+      }
+
+      return {
+        ...previous,
+        [queueId]: nextStatus
+      };
+    });
+  };
+
+  const handleResetQueueStatusChanges = () => {
+    if (!hasPendingQueueStatusChanges) {
+      return;
+    }
+
+    setQueues((previous) =>
+      previous.map((queue) => ({
+        ...queue,
+        status: savedQueueStatuses[queue.id] ?? queue.status
+      }))
+    );
+
+    setPendingQueueStatuses({});
+  };
+
+  const handleApplyQueueStatusChanges = async () => {
+    const queueIds = Object.keys(pendingQueueStatuses);
+    if (queueIds.length === 0) {
+      return;
+    }
+
+    setIsApplyingQueueStatus(true);
+
+    try {
+      for (const queueId of queueIds) {
+        const numericQueueId = Number(queueId);
+        const status = pendingQueueStatuses[numericQueueId];
+
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/queue/${numericQueueId}/status`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ status: status satisfies QueueStatus })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to update queue ${numericQueueId} status: ${response.status}`);
+        }
+      }
+
+      setSavedQueueStatuses((previous) => ({
+        ...previous,
+        ...pendingQueueStatuses
+      }));
+      setPendingQueueStatuses({});
+    } catch (error) {
+      console.error("Error applying queue status changes:", error);
+      alert("Failed to apply queue status changes. Please try again.");
+    } finally {
+      setIsApplyingQueueStatus(false);
+    }
   };
 
   const handleViewDetails = (queueId: number) => {
@@ -159,7 +240,7 @@ export default function AdminDashboard() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            status: "Open",
+            status: "Open" satisfies QueueStatus,
             serviceId: createdService.id,
           }),
         });
@@ -184,7 +265,7 @@ export default function AdminDashboard() {
   const totalWaiting = entries.filter((entry) => entry.status === "Waiting").length;
   const totalPending = entries.filter((entry) => entry.status === "Pending").length;
   const openQueues = queues.filter((queue) => queue.status === "Open").length;
-  console.log(queues);
+  const hasPendingQueueStatusChanges = Object.keys(pendingQueueStatuses).length > 0;
 
   return (
     <AdminLayout>
@@ -202,6 +283,25 @@ export default function AdminDashboard() {
           </div>
           <Button variant="primary" onClick={handleOpenCreateModal} className="w-full sm:w-auto">
             + New Service
+          </Button>
+        </div>
+
+        <div className="mb-6 flex flex-col justify-end gap-3 sm:flex-row">
+          <Button
+            variant="secondary"
+            onClick={handleResetQueueStatusChanges}
+            disabled={!hasPendingQueueStatusChanges || isApplyingQueueStatus}
+            className="w-full sm:w-auto"
+          >
+            Reset Changes
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleApplyQueueStatusChanges}
+            disabled={!hasPendingQueueStatusChanges || isApplyingQueueStatus}
+            className="w-full sm:w-auto"
+          >
+            {isApplyingQueueStatus ? "Applying Changes..." : "Apply Changes"}
           </Button>
         </div>
 
