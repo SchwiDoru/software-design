@@ -264,7 +264,7 @@ export default function AdminDashboard() {
 
   const totalWaiting = entries.filter((entry) => entry.status === "Waiting").length;
   const totalPending = entries.filter((entry) => entry.status === "Pending").length;
-  const openQueues = queues.filter((queue) => queue.status === "Open").length;
+  const openQueues = queues.filter((queue) => savedQueueStatuses[queue.id] === "Open").length;
   const hasPendingQueueStatusChanges = Object.keys(pendingQueueStatuses).length > 0;
 
   return (
