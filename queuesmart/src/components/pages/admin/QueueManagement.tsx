@@ -363,7 +363,7 @@ export default function QueueManagement() {
                   <div className="flex items-start justify-between">
                     <span className="font-semibold text-foreground">{queue.service?.name}</span>
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${queue.status === "open" ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${queue.status === "Open" ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"
                         }`}
                     >
                       {queue.status}

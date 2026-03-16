@@ -10,7 +10,7 @@ interface QueueCardProps {
 }
 
 export const QueueCard: React.FC<QueueCardProps> = ({ queue, waitingCount = 0, onToggleStatus, onViewDetails }) => {
-    const isOpen = queue.status === 'open';
+    const isOpen = queue.status === 'Open';
     const serviceName = queue.service?.name || 'Unknown Service';
     const priority = queue.service?.priority || 'Medium';
 

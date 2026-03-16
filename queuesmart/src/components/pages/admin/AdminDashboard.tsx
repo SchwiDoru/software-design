@@ -67,7 +67,7 @@ export default function AdminDashboard() {
     setQueues((previous) =>
       previous.map((queue) =>
         queue.id === queueId
-          ? { ...queue, status: currentStatus === "open" ? "closed" : "open" }
+          ? { ...queue, status: currentStatus === "Open" ? "Closed" : "Open" }
           : queue
       )
     );
@@ -183,7 +183,8 @@ export default function AdminDashboard() {
 
   const totalWaiting = entries.filter((entry) => entry.status === "Waiting").length;
   const totalPending = entries.filter((entry) => entry.status === "Pending").length;
-  const openQueues = queues.filter((queue) => queue.status === "open").length;
+  const openQueues = queues.filter((queue) => queue.status === "Open").length;
+  console.log(queues);
 
   return (
     <AdminLayout>

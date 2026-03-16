@@ -1,5 +1,5 @@
 export type Priority = 'High' | 'Medium' | 'Low';
-export type QueueStatus = 'open' | 'closed';
+export type QueueStatus = 'Open' | 'Closed';
 export type QueueEntryStatus = 'Waiting' | 'Served' | 'Cancelled' | 'Pending' | 'InProgress' | 'Removed' | 'Completed';
 export type UserRole = 'Admin' | 'Patient' | 'Staff';
 
