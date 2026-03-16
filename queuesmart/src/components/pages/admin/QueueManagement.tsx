@@ -277,13 +277,31 @@ export default function QueueManagement() {
     });
   };
 
-  const handleRemoveUser = (userId: string) => {
-    if (!selectedQueueId || !window.confirm("Are you sure you want to remove this user from the queue?")) {
+  const handleRemoveUser = async (userId: string) => {
+    if (!selectedQueueId) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/queueentry/${selectedQueueId}/${encodeURIComponent(userId)}/status`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "Removed" satisfies QueueEntryStatus })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    } catch (error) {
+      console.error("Error removing user from queue:", error);
       return;
     }
 
     updateEntries((previous) => {
-      const filtered = previous.filter((entry) => entry.userId !== userId);
+      const filtered = previous.filter((entry) => !(entry.userId === userId && entry.queueId === selectedQueueId));
       const otherQueues = filtered.filter((entry) => entry.queueId !== selectedQueueId);
       const thisQueue = filtered
         .filter((entry) => entry.queueId === selectedQueueId)
