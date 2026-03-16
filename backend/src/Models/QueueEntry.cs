@@ -4,9 +4,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Backend.Models;
 
-[PrimaryKey(nameof(QueueId), nameof(UserId))]
+[PrimaryKey(nameof(QueueId), nameof(UserId), nameof(Id))]
 public class QueueEntry
 {
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public int Id {get; private set;}
     public int? Position {get; set;}
     public DateTime JoinTime {get; set;}
     public QueueEntryStatus Status {get; set;}
