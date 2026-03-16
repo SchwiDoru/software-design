@@ -62,7 +62,7 @@ Accept: application/json
 Content-Type: application/json
 
 {
-    "QueueId": 2,
+    "QueueId": 1,
     "UserId": "darrenfr83@gmail.com",
     "Description": null
 }
@@ -73,7 +73,7 @@ Accept: application/json
 Content-Type: application/json
 
 {
-    "QueueId": 2,
+    "QueueId": 1,
     "UserId": "test@gmail.com",
     "Description": "Chest pain"
 }
