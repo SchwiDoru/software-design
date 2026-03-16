@@ -79,10 +79,10 @@ Content-Type: application/json
 }
 
 ###
-PUT {{backend_HostAddress}}/queueentry/1/darrenfr83@gmail.com/status
+PUT {{backend_HostAddress}}/queueentry/1/status
 Accept: application/json
 Content-Type: application/json
 
 {
-    "Status": "Removed"
+    "Status": "Completed"
 }

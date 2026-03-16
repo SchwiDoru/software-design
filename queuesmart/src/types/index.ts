@@ -33,6 +33,7 @@ export interface Queue {
 
 // Queue Entry (User in a Queue)
 export interface QueueEntry {
+    id: number;
     queueId: number;
     userId: string;
     // Joined user details for display

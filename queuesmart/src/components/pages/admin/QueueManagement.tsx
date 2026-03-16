@@ -7,7 +7,7 @@ import { Button } from "../../ui/Button";
 import type { Queue, QueueEntry, QueueEntryStatus } from "../../../types";
 
 type QueueOrderSnapshot = {
-  userId: string;
+  id: number;
   position: number;
 };
 
@@ -19,7 +19,7 @@ const createQueueOrderSnapshots = (queueEntries: QueueEntry[]) => {
 
     const existingSnapshots = snapshots[entry.queueId] ?? [];
     existingSnapshots.push({
-      userId: entry.userId,
+      id: entry.id,
       position: entry.position
     });
     snapshots[entry.queueId] = existingSnapshots.sort((left, right) => left.position - right.position);
@@ -128,7 +128,7 @@ export default function QueueManagement() {
 
     return currentQueueEntries.some((entry, index) => {
       const savedEntry = savedOrder[index];
-      return !savedEntry || savedEntry.userId !== entry.userId || savedEntry.position !== entry.position;
+      return !savedEntry || savedEntry.id !== entry.id || savedEntry.position !== entry.position;
     });
   }, [currentQueueEntries, savedQueueOrders, selectedQueueId]);
 
@@ -140,7 +140,7 @@ export default function QueueManagement() {
     console.log(
       "Current queue entry state positions",
       currentQueueEntries.map((entry) => ({
-        userId: entry.userId,
+        id: entry.id,
         position: entry.position
       }))
     );
@@ -178,7 +178,7 @@ export default function QueueManagement() {
       return;
     }
 
-    const savedPositionsByUserId = new Map(savedOrder.map((entry) => [entry.userId, entry.position]));
+    const savedPositionsById = new Map(savedOrder.map((entry) => [entry.id, entry.position]));
 
     updateEntries((previous) => {
       return previous.map((entry) => {
@@ -186,7 +186,7 @@ export default function QueueManagement() {
           return entry;
         }
 
-        const savedPosition = savedPositionsByUserId.get(entry.userId);
+        const savedPosition = savedPositionsById.get(entry.id);
         if (savedPosition === undefined) {
           return entry;
         }
@@ -211,7 +211,7 @@ export default function QueueManagement() {
 
       for (const entry of orderedEntries) {
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/queueentry/${selectedQueueId}/${encodeURIComponent(entry.userId)}/position`,
+          `${import.meta.env.VITE_API_URL}/queueentry/${entry.id}/position`,
           {
             method: "PUT",
             headers: {
@@ -229,7 +229,7 @@ export default function QueueManagement() {
       setSavedQueueOrders((previous) => ({
         ...previous,
         [selectedQueueId]: orderedEntries.map((entry) => ({
-          userId: entry.userId,
+          id: entry.id,
           position: entry.position
         }))
       }));
@@ -249,7 +249,7 @@ export default function QueueManagement() {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/queueentry/${selectedQueueId}/${encodeURIComponent(nextUser.userId)}/status`,
+        `${import.meta.env.VITE_API_URL}/queueentry/${nextUser.id}/status`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -266,7 +266,7 @@ export default function QueueManagement() {
     }
 
     updateEntries((previous) => {
-      const filtered = previous.filter((entry) => !(entry.userId === nextUser.userId && entry.queueId === selectedQueueId));
+      const filtered = previous.filter((entry) => entry.id !== nextUser.id);
       const otherQueues = filtered.filter((entry) => entry.queueId !== selectedQueueId);
       const thisQueue = filtered
         .filter((entry) => entry.queueId === selectedQueueId)
@@ -277,14 +277,14 @@ export default function QueueManagement() {
     });
   };
 
-  const handleRemoveUser = async (userId: string) => {
+  const handleRemoveUser = async (entryId: number) => {
     if (!selectedQueueId) {
       return;
     }
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/queueentry/${selectedQueueId}/${encodeURIComponent(userId)}/status`,
+        `${import.meta.env.VITE_API_URL}/queueentry/${entryId}/status`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -301,7 +301,7 @@ export default function QueueManagement() {
     }
 
     updateEntries((previous) => {
-      const filtered = previous.filter((entry) => !(entry.userId === userId && entry.queueId === selectedQueueId));
+      const filtered = previous.filter((entry) => entry.id !== entryId);
       const otherQueues = filtered.filter((entry) => entry.queueId !== selectedQueueId);
       const thisQueue = filtered
         .filter((entry) => entry.queueId === selectedQueueId)
@@ -428,7 +428,7 @@ export default function QueueManagement() {
                       <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
                         {currentQueueEntries.length > 0 ? (
                           currentQueueEntries.map((entry, index) => (
-                            <Draggable key={entry.userId.toString()} draggableId={entry.userId.toString()} index={index}>
+                            <Draggable key={entry.id.toString()} draggableId={entry.id.toString()} index={index}>
                               {(draggableProvided, snapshot) => (
                                 <div
                                   ref={draggableProvided.innerRef}
@@ -470,7 +470,7 @@ export default function QueueManagement() {
                                   </div>
 
                                   <button
-                                    onClick={() => handleRemoveUser(entry.userId)}
+                                    onClick={() => handleRemoveUser(entry.id)}
                                     className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600"
                                     title="Remove from queue"
                                   >

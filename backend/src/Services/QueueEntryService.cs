@@ -159,41 +159,37 @@ public class QueueEntryServices
         }
     }
 
-    public async Task<QueueEntry> UpdateQueueEntryPosition(int queueId, string userId, int position)
+    public async Task<QueueEntry> UpdateQueueEntryPosition(int id, int position)
     {
-        if (queueId <= 0)
+        if (id <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(queueId), "Queue ID must be greater than 0");
-        }
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            throw new ArgumentException("Queue entry user id (email) is required", nameof(userId));
+            throw new ArgumentOutOfRangeException(nameof(id), "Queue entry ID must be greater than 0");
         }
         if (position < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(position), "Position must be zero-based and cannot be negative");
         }
 
-        var normalizedUserId = userId.Trim();
-
         try
         {
             var existingQueueEntry = await _dbContext.QueueEntries
                 .Include(qe => qe.Queue)
                 .Include(qe => qe.User)
-                .FirstOrDefaultAsync(qe => qe.QueueId == queueId && qe.UserId == normalizedUserId);
+                .FirstOrDefaultAsync(qe => qe.Id == id);
 
             if (existingQueueEntry == null)
             {
-                throw new KeyNotFoundException($"Queue entry for queue ID {queueId} and user '{normalizedUserId}' was not found");
+                throw new KeyNotFoundException($"Queue entry with ID {id} was not found");
             }
+
+            var normalizedUserId = existingQueueEntry.UserId.Trim();
 
             if (existingQueueEntry.Status != QueueEntryStatus.Waiting || existingQueueEntry.Position == null)
             {
-                throw new ArgumentException("Only waiting queue entries with a position can be reordered", nameof(userId));
+                throw new ArgumentException("Only waiting queue entries with a position can be reordered");
             }
 
-            var waitingEntriesCount = await _dbContext.QueueEntries.CountAsync(qe => qe.QueueId == queueId && qe.Status == QueueEntryStatus.Waiting);
+            var waitingEntriesCount = await _dbContext.QueueEntries.CountAsync(qe => qe.QueueId == existingQueueEntry.QueueId && qe.Status == QueueEntryStatus.Waiting);
             if (position >= waitingEntriesCount)
             {
                 throw new ArgumentOutOfRangeException(nameof(position), "Position must be within the waiting queue range");
@@ -204,7 +200,7 @@ public class QueueEntryServices
 
             await _dbContext.SaveChangesAsync();
 
-            await RecalculateQueuePositions(queueId, normalizedUserId, previousPosition, existingQueueEntry.Position);
+            await RecalculateQueuePositions(existingQueueEntry.QueueId, normalizedUserId, previousPosition, existingQueueEntry.Position);
             await _dbContext.SaveChangesAsync();
 
             return existingQueueEntry;
@@ -222,15 +218,11 @@ public class QueueEntryServices
             throw new Exception("Unexpected error updating queue entry position: ", err);
         }
     }
-    public async Task<QueueEntry> UpdateQueueEntryStatus(int queueId, string userId, QueueEntryStatus status)
+    public async Task<QueueEntry> UpdateQueueEntryStatus(int id, QueueEntryStatus status)
     {
-        if (queueId <= 0)
+        if (id <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(queueId), "Queue ID must be greater than 0");
-        }
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            throw new ArgumentException("Queue entry user id (email) is required", nameof(userId));
+            throw new ArgumentOutOfRangeException(nameof(id), "Queue entry ID must be greater than 0");
         }
         if (!Enum.IsDefined(typeof(QueueEntryStatus), status))
         {
@@ -240,19 +232,19 @@ public class QueueEntryServices
             );
         }
 
-        var normalizedUserId = userId.Trim();
-
         try
         {
             var existingQueueEntry = await _dbContext.QueueEntries
                 .Include(qe => qe.Queue)
                 .Include(qe => qe.User)
-                .FirstOrDefaultAsync(qe => qe.QueueId == queueId && qe.UserId == normalizedUserId);
+                .FirstOrDefaultAsync(qe => qe.Id == id);
 
             if (existingQueueEntry == null)
             {
-                throw new KeyNotFoundException($"Queue entry for queue ID {queueId} and user '{normalizedUserId}' was not found");
+                throw new KeyNotFoundException($"Queue entry with ID {id} was not found");
             }
+
+            var normalizedUserId = existingQueueEntry.UserId.Trim();
 
             var previousStatus = existingQueueEntry.Status;
             var previousPosition = existingQueueEntry.Position;
@@ -282,7 +274,7 @@ public class QueueEntryServices
 
             await _dbContext.SaveChangesAsync();
 
-            await RecalculateQueuePositions(queueId, normalizedUserId, previousPosition, updatedPosition);
+            await RecalculateQueuePositions(existingQueueEntry.QueueId, normalizedUserId, previousPosition, updatedPosition);
             await _dbContext.SaveChangesAsync();
 
             return existingQueueEntry;
@@ -371,15 +363,11 @@ public class QueueEntryServices
 
     }
 
-    public async Task<QueueEntry> UpdateQueueEntry(int queueId, string userId, QueueEntryStatus status, PriorityLevel priority)
+    public async Task<QueueEntry> UpdateQueueEntry(int id, QueueEntryStatus status, PriorityLevel priority)
     {
-        if (queueId <= 0)
+        if (id <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(queueId), "Queue ID must be greater than 0");
-        }
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            throw new ArgumentException("Queue entry user id (email) is required", nameof(userId));
+            throw new ArgumentOutOfRangeException(nameof(id), "Queue entry ID must be greater than 0");
         }
         if (!Enum.IsDefined(typeof(QueueEntryStatus), status))
         {
@@ -396,24 +384,24 @@ public class QueueEntryServices
             );
         }
 
-        var normalizedUserId = userId.Trim();
-
         try
         {
             var existingQueueEntry = await _dbContext.QueueEntries
                 .Include(qe => qe.Queue)
                 .Include(qe => qe.User)
-                .FirstOrDefaultAsync(qe => qe.QueueId == queueId && qe.UserId == normalizedUserId);
+                .FirstOrDefaultAsync(qe => qe.Id == id);
 
             if (existingQueueEntry == null)
             {
-                throw new KeyNotFoundException($"Queue entry for queue ID {queueId} and user '{normalizedUserId}' was not found");
+                throw new KeyNotFoundException($"Queue entry with ID {id} was not found");
             }
 
-            var queueExists = await _dbContext.Queues.AnyAsync(q => q.Id == queueId);
+            var normalizedUserId = existingQueueEntry.UserId.Trim();
+
+            var queueExists = await _dbContext.Queues.AnyAsync(q => q.Id == existingQueueEntry.QueueId);
             if (!queueExists)
             {
-                throw new KeyNotFoundException($"Queue with ID {queueId} was not found");
+                throw new KeyNotFoundException($"Queue with ID {existingQueueEntry.QueueId} was not found");
             }
 
             var userExists = await _dbContext.UserProfiles.AnyAsync(u => u.Email == normalizedUserId);
@@ -451,7 +439,7 @@ public class QueueEntryServices
 
             await _dbContext.SaveChangesAsync();
 
-            await RecalculateQueuePositions(queueId, normalizedUserId, previousPosition, updatedPosition);
+            await RecalculateQueuePositions(existingQueueEntry.QueueId, normalizedUserId, previousPosition, updatedPosition);
             await _dbContext.SaveChangesAsync();
             return existingQueueEntry;
         }

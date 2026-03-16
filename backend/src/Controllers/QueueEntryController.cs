@@ -81,14 +81,13 @@ public class QueueEntryController: ControllerBase
         }
     }
 
-    [HttpPut("{queueId:int}/{userId}")]
-    public async Task<ActionResult<QueueEntry>> UpdateQueueEntryController(int queueId, string userId, UpdateQueueEntryDTO queueEntryDto)
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<QueueEntry>> UpdateQueueEntryController(int id, UpdateQueueEntryDTO queueEntryDto)
     {
         try
         {
             var updatedQueueEntry = await _queueEntryService.UpdateQueueEntry(
-                queueId,
-                userId,
+                id,
                 queueEntryDto.Status,
                 queueEntryDto.Priority
             );
@@ -119,14 +118,13 @@ public class QueueEntryController: ControllerBase
         }
     }
 
-    [HttpPut("{queueId:int}/{userId}/position")]
-    public async Task<ActionResult<QueueEntry>> UpdateQueueEntryPositionController(int queueId, string userId, UpdateQueueEntryPositionDTO queueEntryDto)
+    [HttpPut("{id:int}/position")]
+    public async Task<ActionResult<QueueEntry>> UpdateQueueEntryPositionController(int id, UpdateQueueEntryPositionDTO queueEntryDto)
     {
         try
         {
             var updatedQueueEntry = await _queueEntryService.UpdateQueueEntryPosition(
-                queueId,
-                userId,
+                id,
                 queueEntryDto.Position
             );
 
@@ -156,14 +154,13 @@ public class QueueEntryController: ControllerBase
         }
     }
 
-    [HttpPut("{queueId:int}/{userId}/status")]
-    public async Task<ActionResult<QueueEntry>> UpdateQueueEntryStatusController(int queueId, string userId, UpdateQueueEntryStatusDTO queueEntryDto)
+    [HttpPut("{id:int}/status")]
+    public async Task<ActionResult<QueueEntry>> UpdateQueueEntryStatusController(int id, UpdateQueueEntryStatusDTO queueEntryDto)
     {
         try
         {
             var updatedQueueEntry = await _queueEntryService.UpdateQueueEntryStatus(
-                queueId,
-                userId,
+                id,
                 queueEntryDto.Status
             );
 
