@@ -107,7 +107,7 @@ export default function PendingQueueEntries() {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/queueentry/${entry.id}`,
+        `${import.meta.env.VITE_API_URL}/queueentry/${entry.id}/update-pending`,
         {
           method: "PUT",
           headers: {

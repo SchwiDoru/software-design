@@ -86,3 +86,13 @@ Content-Type: application/json
 {
     "Status": "Completed"
 }
+
+###
+PUT {{backend_HostAddress}}/queueentry/1/update-pending
+Accept: application/json
+Content-Type: application/json
+
+{
+    "Status": "Waiting",
+    "Priority": "Medium"
+}

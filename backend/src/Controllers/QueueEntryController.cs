@@ -73,6 +73,10 @@ public class QueueEntryController: ControllerBase
         {
             return BadRequest(new { error = err.Message });
         }
+        catch (InvalidOperationException err)
+        {
+            return Conflict(new { error = err.Message });
+        }
         catch(Exception err)
         {
             Console.WriteLine($"Error in QueueEntryController.CreateQueueEntryController: {err.Message}");
@@ -81,7 +85,7 @@ public class QueueEntryController: ControllerBase
         }
     }
 
-    [HttpPut("{id:int}")]
+    [HttpPut("{id:int}/update-pending")]
     public async Task<ActionResult<QueueEntry>> UpdateQueueEntryController(int id, UpdateQueueEntryDTO queueEntryDto)
     {
         try
@@ -109,6 +113,10 @@ public class QueueEntryController: ControllerBase
         catch (ArgumentException err)
         {
             return BadRequest(new { error = err.Message });
+        }
+        catch (InvalidOperationException err)
+        {
+            return Conflict(new { error = err.Message });
         }
         catch(Exception err)
         {
@@ -181,6 +189,10 @@ public class QueueEntryController: ControllerBase
         catch (ArgumentException err)
         {
             return BadRequest(new { error = err.Message });
+        }
+        catch (InvalidOperationException err)
+        {
+            return Conflict(new { error = err.Message });
         }
         catch(Exception err)
         {

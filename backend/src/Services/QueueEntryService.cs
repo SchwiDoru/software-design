@@ -12,7 +12,20 @@ public class QueueEntryServices
     {
         _dbContext = dbContext;
     }
-        private async Task<int> CalculateQueueEntryPosition(QueueEntry queueEntry)
+
+    private async Task EnsureQueueIsOpen(int queueId)
+    {
+        var isQueueClosed = await _dbContext.Queues.AnyAsync(queue =>
+            queue.Id == queueId &&
+            queue.Status == QueueStatus.Closed);
+
+        if (isQueueClosed)
+        {
+            throw new InvalidOperationException("Queue is currently closed");
+        }
+    }
+
+    private async Task<int> CalculateQueueEntryPosition(QueueEntry queueEntry)
     {
         if (queueEntry == null)
         {
@@ -249,6 +262,11 @@ public class QueueEntryServices
             var previousStatus = existingQueueEntry.Status;
             var previousPosition = existingQueueEntry.Position;
 
+            if ((status == QueueEntryStatus.Waiting || status == QueueEntryStatus.Pending) && previousStatus != status)
+            {
+                await EnsureQueueIsOpen(existingQueueEntry.QueueId);
+            }
+
             existingQueueEntry.Status = status;
 
             if (status == QueueEntryStatus.Waiting)
@@ -284,6 +302,10 @@ public class QueueEntryServices
             throw;
         }
         catch (ArgumentException)
+        {
+            throw;
+        }
+        catch (InvalidOperationException)
         {
             throw;
         }
@@ -328,6 +350,8 @@ public class QueueEntryServices
                 throw new KeyNotFoundException($"Queue with ID {queueEntry.QueueId} was not found");
             }
 
+            await EnsureQueueIsOpen(queueEntry.QueueId);
+
             var userExists = await _dbContext.UserProfiles.AnyAsync(u => u.Email == normalizedUserId);
             if (!userExists)
             {
@@ -353,6 +377,10 @@ public class QueueEntryServices
             throw;
         }
         catch (ArgumentException)
+        {
+            throw;
+        }
+        catch (InvalidOperationException)
         {
             throw;
         }
@@ -413,6 +441,11 @@ public class QueueEntryServices
             var previousStatus = existingQueueEntry.Status;
             var previousPosition = existingQueueEntry.Position;
 
+            if ((status == QueueEntryStatus.Waiting || status == QueueEntryStatus.Pending) && previousStatus != status)
+            {
+                await EnsureQueueIsOpen(existingQueueEntry.QueueId);
+            }
+
             existingQueueEntry.Status = status;
             existingQueueEntry.Priority = priority;
 
@@ -448,6 +481,10 @@ public class QueueEntryServices
             throw;
         }
         catch (ArgumentException)
+        {
+            throw;
+        }
+        catch (InvalidOperationException)
         {
             throw;
         }
