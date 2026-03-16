@@ -11,6 +11,12 @@ type QueueOrderSnapshot = {
   position: number;
 };
 
+type PendingReorderMove = {
+  queueId: number;
+  entryId: number;
+  position: number;
+};
+
 const createQueueOrderSnapshots = (queueEntries: QueueEntry[]) => {
   return queueEntries.reduce<Record<number, QueueOrderSnapshot[]>>((snapshots, entry) => {
     if (entry.status !== "Waiting") {
@@ -34,6 +40,7 @@ export default function QueueManagement() {
   const [queues, setQueues] = useState<Queue[]>([]);
   const [entries, setEntries] = useState<QueueEntry[]>([]);
   const [savedQueueOrders, setSavedQueueOrders] = useState<Record<number, QueueOrderSnapshot[]>>({});
+  const [pendingReorderMoves, setPendingReorderMoves] = useState<PendingReorderMove[]>([]);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
 
   useEffect(() => {
@@ -76,10 +83,12 @@ export default function QueueManagement() {
         const data = await response.json();
         setEntries(data);
         setSavedQueueOrders(createQueueOrderSnapshots(data));
+        setPendingReorderMoves([]);
       } catch (error) {
         console.error("Error fetching queue entries:", error);
         setEntries([]);
         setSavedQueueOrders({});
+        setPendingReorderMoves([]);
       }
     };
 
@@ -197,6 +206,8 @@ export default function QueueManagement() {
         };
       });
     });
+
+    setPendingReorderMoves((previous) => previous.filter((move) => move.queueId !== selectedQueueId));
   };
 
   const handleConfirmOrder = async () => {
@@ -207,17 +218,17 @@ export default function QueueManagement() {
     setIsSavingOrder(true);
 
     try {
-      const orderedEntries = [...currentQueueEntries].sort((left, right) => left.position - right.position);
+      const queueMoves = pendingReorderMoves.filter((move) => move.queueId === selectedQueueId);
 
-      for (const entry of orderedEntries) {
+      for (const move of queueMoves) {
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/queueentry/${entry.id}/position`,
+          `${import.meta.env.VITE_API_URL}/queueentry/${move.entryId}/position`,
           {
             method: "PUT",
             headers: {
               "Content-Type": "application/json"
             },
-            body: JSON.stringify({ position: entry.position })
+            body: JSON.stringify({ position: move.position })
           }
         );
 
@@ -226,6 +237,8 @@ export default function QueueManagement() {
         }
       }
 
+      const orderedEntries = [...currentQueueEntries];
+
       setSavedQueueOrders((previous) => ({
         ...previous,
         [selectedQueueId]: orderedEntries.map((entry) => ({
@@ -233,6 +246,7 @@ export default function QueueManagement() {
           position: entry.position
         }))
       }));
+      setPendingReorderMoves((previous) => previous.filter((move) => move.queueId !== selectedQueueId));
     } catch (error) {
       console.error("Error saving queue order:", error);
     } finally {
@@ -324,6 +338,11 @@ export default function QueueManagement() {
       return;
     }
 
+    const movedEntryId = currentQueueEntries[sourceIndex]?.id;
+    if (!movedEntryId) {
+      return;
+    }
+
     updateEntries((previous) => {
       const queueItems = previous
         .filter((entry) => entry.queueId === selectedQueueId && entry.status === "Waiting")
@@ -339,6 +358,15 @@ export default function QueueManagement() {
       const otherQueueItems = previous.filter((entry) => entry.queueId !== selectedQueueId);
       return [...otherQueueItems, ...updatedQueueItems];
     });
+
+    setPendingReorderMoves((previous) => [
+      ...previous,
+      {
+        queueId: selectedQueueId,
+        entryId: movedEntryId,
+        position: destinationIndex
+      }
+    ]);
   };
 
   return (
