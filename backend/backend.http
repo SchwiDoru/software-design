@@ -77,3 +77,12 @@ Content-Type: application/json
     "UserId": "test@gmail.com",
     "Description": "Chest pain"
 }
+
+###
+PUT {{backend_HostAddress}}/queueentry/1/darrenfr83@gmail.com/status
+Accept: application/json
+Content-Type: application/json
+
+{
+    "Status": "Removed"
+}

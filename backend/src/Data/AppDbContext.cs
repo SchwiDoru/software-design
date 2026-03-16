@@ -1,3 +1,4 @@
+using Backend.Constants;
 using Backend.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,4 +10,15 @@ public class AppDbContext: DbContext
     public DbSet<Queue> Queues {get; set;}
     public DbSet<UserProfile> UserProfiles {get; set;}
     public DbSet<QueueEntry> QueueEntries {get; set;}
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<QueueEntry>()
+            .HasIndex(queueEntry => queueEntry.UserId)
+            .IsUnique()
+            .HasDatabaseName("one_active_queue_per_user")
+            .HasFilter($"[{nameof(QueueEntry.Status)}] IN ({(int)QueueEntryStatus.Pending}, {(int)QueueEntryStatus.Waiting}, {(int)QueueEntryStatus.InProgress})");
+    }
 }

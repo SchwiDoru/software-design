@@ -325,6 +325,8 @@ public class QueueEntryServices
         {
             throw new ArgumentException("Error queue entry user id (email) is required", nameof(queueEntry.UserId));
         }
+        var normalizedUserId = queueEntry.UserId.Trim();
+        queueEntry.UserId = normalizedUserId;
 
         try
         {
@@ -334,20 +336,39 @@ public class QueueEntryServices
                 throw new KeyNotFoundException($"Queue with ID {queueEntry.QueueId} was not found");
             }
 
-            var userExists = await _dbContext.UserProfiles.AnyAsync(u => u.Email == queueEntry.UserId);
+            var userExists = await _dbContext.UserProfiles.AnyAsync(u => u.Email == normalizedUserId);
             if (!userExists)
             {
-                throw new KeyNotFoundException($"UserProfile with Email '{queueEntry.UserId}' was not found");
+                throw new KeyNotFoundException($"UserProfile with Email '{normalizedUserId}' was not found");
+            }
+
+            var hasActiveQueueEntry = await _dbContext.QueueEntries.AnyAsync(existingQueueEntry =>
+                existingQueueEntry.UserId == normalizedUserId &&
+                (existingQueueEntry.Status == QueueEntryStatus.Pending ||
+                 existingQueueEntry.Status == QueueEntryStatus.Waiting ||
+                 existingQueueEntry.Status == QueueEntryStatus.InProgress));
+            if (hasActiveQueueEntry)
+            {
+                throw new ArgumentException($"User '{normalizedUserId}' already has an active queue entry");
             }
 
             await _dbContext.QueueEntries.AddAsync(queueEntry);
             await _dbContext.SaveChangesAsync();
             return queueEntry;
         }
-        catch(Exception err)
+        catch (KeyNotFoundException)
+        {
+            throw;
+        }
+        catch (ArgumentException)
+        {
+            throw;
+        }
+        catch (Exception err)
         {
             throw new Exception("Unexpected error creating queue entry: ", err);
         }
+
     }
 
     public async Task<QueueEntry> UpdateQueueEntry(int queueId, string userId, QueueEntryStatus status, PriorityLevel priority)
