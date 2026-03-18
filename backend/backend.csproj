@@ -13,4 +13,15 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.3" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="tests/**/*.cs" />
+    <Compile Remove="Backend.Tests/**/*.cs" />
+    <None Remove="tests/**/*.cs" />
+    <None Remove="Backend.Tests/**/*.cs" />
+    <Content Remove="tests/**/*" />
+    <Content Remove="Backend.Tests/**/*" />
+    <EmbeddedResource Remove="tests/**/*" />
+    <EmbeddedResource Remove="Backend.Tests/**/*" />
+  </ItemGroup>
 </Project>
