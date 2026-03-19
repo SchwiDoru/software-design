@@ -5,7 +5,7 @@ using Backend.Data;
 
 namespace Backend.Services;
 
-public class QueueEntryServices
+public class QueueEntryServices : IQueueEntryServices
 {
     private readonly AppDbContext _dbContext;
 
@@ -173,6 +173,82 @@ public class QueueEntryServices
         }
     }
 
+     public async Task<QueueEntry> CreateQueueEntry(QueueEntry? queueEntry)
+    {
+        if (queueEntry == null)
+        {
+            throw new ArgumentNullException(nameof(queueEntry), "Queue entry cannot be null");
+        }
+        if (!Enum.IsDefined(typeof(QueueEntryStatus), queueEntry.Status))
+        {
+            throw new ArgumentException(
+                "Error queue entry status isn't valid: status must be (waiting, served, cancelled)",
+                nameof(queueEntry.Status)
+            );
+        }
+        if (!Enum.IsDefined(typeof(PriorityLevel), queueEntry.Priority))
+        {
+            throw new ArgumentException(
+                "Error queue entry priority level isn't valid: status must be (High, Medium, or Low)",
+                nameof(queueEntry.Priority)
+            );
+        }
+        if (string.IsNullOrWhiteSpace(queueEntry.UserId))
+        {
+            throw new ArgumentException("Error queue entry user id (email) is required", nameof(queueEntry.UserId));
+        }
+        var normalizedUserId = queueEntry.UserId.Trim();
+        queueEntry.UserId = normalizedUserId;
+
+        try
+        {
+            var queueExists = await _dbContext.Queues.AnyAsync(q => q.Id == queueEntry.QueueId);
+            if (!queueExists)
+            {
+                throw new KeyNotFoundException($"Queue with ID {queueEntry.QueueId} was not found");
+            }
+
+            await EnsureQueueIsOpen(queueEntry.QueueId);
+
+            var userExists = await _dbContext.UserProfiles.AnyAsync(u => u.Email == normalizedUserId);
+            if (!userExists)
+            {
+                throw new KeyNotFoundException($"UserProfile with Email '{normalizedUserId}' was not found");
+            }
+
+            var hasActiveQueueEntry = await _dbContext.QueueEntries.AnyAsync(existingQueueEntry =>
+                existingQueueEntry.UserId == normalizedUserId &&
+                (existingQueueEntry.Status == QueueEntryStatus.Pending ||
+                 existingQueueEntry.Status == QueueEntryStatus.Waiting ||
+                 existingQueueEntry.Status == QueueEntryStatus.InProgress));
+            if (hasActiveQueueEntry)
+            {
+                throw new ArgumentException($"User '{normalizedUserId}' already has an active queue entry");
+            }
+
+            await _dbContext.QueueEntries.AddAsync(queueEntry);
+            await _dbContext.SaveChangesAsync();
+            return queueEntry;
+        }
+        catch (KeyNotFoundException)
+        {
+            throw;
+        }
+        catch (ArgumentException)
+        {
+            throw;
+        }
+        catch (InvalidOperationException)
+        {
+            throw;
+        }
+        catch (Exception err)
+        {
+            throw new Exception("Unexpected error creating queue entry: ", err);
+        }
+
+    }
+
     public async Task<QueueEntry> UpdateQueueEntryPosition(int id, int position)
     {
         if (id <= 0)
@@ -263,7 +339,7 @@ public class QueueEntryServices
             var previousStatus = existingQueueEntry.Status;
             var previousPosition = existingQueueEntry.Position;
 
-            if ((status == QueueEntryStatus.Waiting || status == QueueEntryStatus.Pending) && previousStatus != status)
+            if (previousStatus != status)
             {
                 await EnsureQueueIsOpen(existingQueueEntry.QueueId);
             }
@@ -316,92 +392,16 @@ public class QueueEntryServices
         }
     }
 
-    public async Task<QueueEntry> CreateQueueEntry(QueueEntry queueEntry)
-    {
-        if (queueEntry == null)
-        {
-            throw new ArgumentNullException(nameof(queueEntry), "Queue entry cannot be null");
-        }
-        if (!Enum.IsDefined(typeof(QueueEntryStatus), queueEntry.Status))
-        {
-            throw new ArgumentException(
-                "Error queue entry status isn't valid: status must be (waiting, served, cancelled)",
-                nameof(queueEntry.Status)
-            );
-        }
-        if (!Enum.IsDefined(typeof(PriorityLevel), queueEntry.Priority))
-        {
-            throw new ArgumentException(
-                "Error queue entry priority level isn't valid: status must be (High, Medium, or Low)",
-                nameof(queueEntry.Priority)
-            );
-        }
-        if (string.IsNullOrWhiteSpace(queueEntry.UserId))
-        {
-            throw new ArgumentException("Error queue entry user id (email) is required", nameof(queueEntry.UserId));
-        }
-        var normalizedUserId = queueEntry.UserId.Trim();
-        queueEntry.UserId = normalizedUserId;
-
-        try
-        {
-            var queueExists = await _dbContext.Queues.AnyAsync(q => q.Id == queueEntry.QueueId);
-            if (!queueExists)
-            {
-                throw new KeyNotFoundException($"Queue with ID {queueEntry.QueueId} was not found");
-            }
-
-            await EnsureQueueIsOpen(queueEntry.QueueId);
-
-            var userExists = await _dbContext.UserProfiles.AnyAsync(u => u.Email == normalizedUserId);
-            if (!userExists)
-            {
-                throw new KeyNotFoundException($"UserProfile with Email '{normalizedUserId}' was not found");
-            }
-
-            var hasActiveQueueEntry = await _dbContext.QueueEntries.AnyAsync(existingQueueEntry =>
-                existingQueueEntry.UserId == normalizedUserId &&
-                (existingQueueEntry.Status == QueueEntryStatus.Pending ||
-                 existingQueueEntry.Status == QueueEntryStatus.Waiting ||
-                 existingQueueEntry.Status == QueueEntryStatus.InProgress));
-            if (hasActiveQueueEntry)
-            {
-                throw new ArgumentException($"User '{normalizedUserId}' already has an active queue entry");
-            }
-
-            await _dbContext.QueueEntries.AddAsync(queueEntry);
-            await _dbContext.SaveChangesAsync();
-            return queueEntry;
-        }
-        catch (KeyNotFoundException)
-        {
-            throw;
-        }
-        catch (ArgumentException)
-        {
-            throw;
-        }
-        catch (InvalidOperationException)
-        {
-            throw;
-        }
-        catch (Exception err)
-        {
-            throw new Exception("Unexpected error creating queue entry: ", err);
-        }
-
-    }
-
-    public async Task<QueueEntry> UpdateQueueEntry(int id, QueueEntryStatus status, PriorityLevel priority)
+    public async Task<QueueEntry> UpdateQueueEntryStatusAndPriority(int id, QueueEntryStatus status, PriorityLevel priority)
     {
         if (id <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(id), "Queue entry ID must be greater than 0");
         }
-        if (!Enum.IsDefined(typeof(QueueEntryStatus), status))
+        if (status != QueueEntryStatus.Pending && status != QueueEntryStatus.Waiting)
         {
             throw new ArgumentException(
-                "Error queue entry status isn't valid: status must be (Waiting, Served, Cancelled, Pending)",
+                "Error queue entry status isn't valid: status must be Pending or Waiting",
                 nameof(status)
             );
         }
@@ -426,6 +426,7 @@ public class QueueEntryServices
             }
 
             var normalizedUserId = existingQueueEntry.UserId.Trim();
+            existingQueueEntry.UserId = normalizedUserId;
 
             var queueExists = await _dbContext.Queues.AnyAsync(q => q.Id == existingQueueEntry.QueueId);
             if (!queueExists)

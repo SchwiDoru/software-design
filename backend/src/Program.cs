@@ -16,9 +16,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 {
     options.UseInMemoryDatabase("in_memory_db");
 });
-builder.Services.AddScoped<ServiceManager>();
-builder.Services.AddScoped<QueueService>();
-builder.Services.AddScoped<QueueEntryServices>();
+builder.Services.AddScoped<IServiceManager, ServiceManager>();
+builder.Services.AddScoped<IQueueService, QueueService>();
+builder.Services.AddScoped<IQueueEntryServices, QueueEntryServices>();
 
 // Add CORS
 builder.Services.AddCors(options =>

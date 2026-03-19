@@ -5,7 +5,7 @@ using Backend.Data;
 
 namespace Backend.Services;
 
-public class ServiceManager
+public class ServiceManager : IServiceManager
 {
     private readonly AppDbContext _dbContext;
     public ServiceManager(AppDbContext dbContext)

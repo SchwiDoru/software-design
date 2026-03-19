@@ -10,9 +10,9 @@ namespace Backend.Controllers;
 [Route("[controller]")]
 public class QueueEntryController: ControllerBase
 {
-    private readonly QueueEntryServices _queueEntryService;
+    private readonly IQueueEntryServices _queueEntryService;
 
-    public QueueEntryController(QueueEntryServices queueEntryServices)
+    public QueueEntryController(IQueueEntryServices queueEntryServices)
     {
         _queueEntryService = queueEntryServices;
     }
@@ -90,7 +90,7 @@ public class QueueEntryController: ControllerBase
     {
         try
         {
-            var updatedQueueEntry = await _queueEntryService.UpdateQueueEntry(
+            var updatedQueueEntry = await _queueEntryService.UpdateQueueEntryStatusAndPriority(
                 id,
                 queueEntryDto.Status,
                 queueEntryDto.Priority

@@ -9,9 +9,9 @@ namespace Backend.Controllers;
 [Route("[controller]")]
 public class QueueController: ControllerBase
 {
-    private readonly QueueService _queueService;
+    private readonly IQueueService _queueService;
 
-    public QueueController(QueueService queueService)
+    public QueueController(IQueueService queueService)
     {
         _queueService = queueService;
     }

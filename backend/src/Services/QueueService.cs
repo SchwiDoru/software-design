@@ -5,7 +5,7 @@ using Backend.Data;
 
 namespace Backend.Services;
 
-public class QueueService
+public class QueueService : IQueueService
 {
     private readonly AppDbContext _dbContext;
 

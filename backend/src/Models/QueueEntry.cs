@@ -13,7 +13,7 @@ public class QueueEntry
     public string? Description {get; set;}
 
     [ForeignKey(nameof(Queue))]
-    public int QueueId {get; set;} // FK → Queue.Id
+    required public int QueueId {get; set;} // FK → Queue.Id
     [ForeignKey(nameof(User))]
     required public string UserId {get; set;} // FK → UserProfile.Email
 
