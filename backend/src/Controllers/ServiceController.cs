@@ -8,8 +8,8 @@ using Microsoft.AspNetCore.Mvc;
 [Route("[controller]")]
 public class ServiceController: ControllerBase
 {
-    private readonly ServiceManager _serviceManager;
-    public ServiceController(ServiceManager serviceManager)
+    private readonly IServiceManager _serviceManager;
+    public ServiceController(IServiceManager serviceManager)
     {
         _serviceManager = serviceManager;
     }

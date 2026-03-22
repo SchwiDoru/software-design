@@ -7,7 +7,7 @@ public class Queue
     public int Id {get; private set;}
     public QueueStatus Status {get; set;}
     public DateTime Date {get; set;}
-    public int ServiceId {get; set;} //FK: Queue.ServiceId -> Service.id
+    required public int ServiceId {get; set;} //FK: Queue.ServiceId -> Service.id
 
     public Service? Service {get; set;}
 }

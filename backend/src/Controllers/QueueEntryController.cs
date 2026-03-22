@@ -10,9 +10,9 @@ namespace Backend.Controllers;
 [Route("[controller]")]
 public class QueueEntryController: ControllerBase
 {
-    private readonly QueueEntryServices _queueEntryService;
+    private readonly IQueueEntryServices _queueEntryService;
 
-    public QueueEntryController(QueueEntryServices queueEntryServices)
+    public QueueEntryController(IQueueEntryServices queueEntryServices)
     {
         _queueEntryService = queueEntryServices;
     }
@@ -73,6 +73,10 @@ public class QueueEntryController: ControllerBase
         {
             return BadRequest(new { error = err.Message });
         }
+        catch (InvalidOperationException err)
+        {
+            return Conflict(new { error = err.Message });
+        }
         catch(Exception err)
         {
             Console.WriteLine($"Error in QueueEntryController.CreateQueueEntryController: {err.Message}");
@@ -81,14 +85,13 @@ public class QueueEntryController: ControllerBase
         }
     }
 
-    [HttpPut("{queueId:int}/{userId}")]
-    public async Task<ActionResult<QueueEntry>> UpdateQueueEntryController(int queueId, string userId, UpdateQueueEntryDTO queueEntryDto)
+    [HttpPut("{id:int}/update-pending")]
+    public async Task<ActionResult<QueueEntry>> UpdateQueueEntryController(int id, UpdateQueueEntryDTO queueEntryDto)
     {
         try
         {
-            var updatedQueueEntry = await _queueEntryService.UpdateQueueEntry(
-                queueId,
-                userId,
+            var updatedQueueEntry = await _queueEntryService.UpdateQueueEntryStatusAndPriority(
+                id,
                 queueEntryDto.Status,
                 queueEntryDto.Priority
             );
@@ -111,6 +114,10 @@ public class QueueEntryController: ControllerBase
         {
             return BadRequest(new { error = err.Message });
         }
+        catch (InvalidOperationException err)
+        {
+            return Conflict(new { error = err.Message });
+        }
         catch(Exception err)
         {
             Console.WriteLine($"Error in QueueEntryController.UpdateQueueEntryController: {err.Message}");
@@ -119,14 +126,13 @@ public class QueueEntryController: ControllerBase
         }
     }
 
-    [HttpPut("{queueId:int}/{userId}/position")]
-    public async Task<ActionResult<QueueEntry>> UpdateQueueEntryPositionController(int queueId, string userId, UpdateQueueEntryPositionDTO queueEntryDto)
+    [HttpPut("{id:int}/position")]
+    public async Task<ActionResult<QueueEntry>> UpdateQueueEntryPositionController(int id, UpdateQueueEntryPositionDTO queueEntryDto)
     {
         try
         {
             var updatedQueueEntry = await _queueEntryService.UpdateQueueEntryPosition(
-                queueId,
-                userId,
+                id,
                 queueEntryDto.Position
             );
 
@@ -156,19 +162,17 @@ public class QueueEntryController: ControllerBase
         }
     }
 
-    [HttpDelete("{queueId:int}/{userId}")]
-    public async Task<ActionResult> DeleteQueueEntryController(int queueId, string userId)
+    [HttpPut("{id:int}/status")]
+    public async Task<ActionResult<QueueEntry>> UpdateQueueEntryStatusController(int id, UpdateQueueEntryStatusDTO queueEntryDto)
     {
         try
         {
-            var result = await _queueEntryService.DeleteQueueEntry(queueId, userId);
-            
-            if (result)
-            {
-                return NoContent();
-            }
-            
-            return BadRequest(new { error = "Failed to delete queue entry" });
+            var updatedQueueEntry = await _queueEntryService.UpdateQueueEntryStatus(
+                id,
+                queueEntryDto.Status
+            );
+
+            return Ok(updatedQueueEntry);
         }
         catch (KeyNotFoundException err)
         {
@@ -186,43 +190,16 @@ public class QueueEntryController: ControllerBase
         {
             return BadRequest(new { error = err.Message });
         }
+        catch (InvalidOperationException err)
+        {
+            return Conflict(new { error = err.Message });
+        }
         catch(Exception err)
         {
-            Console.WriteLine($"Error in QueueEntryController.DeleteQueueEntryController: {err.Message}");
+            Console.WriteLine($"Error in QueueEntryController.UpdateQueueEntryStatusController: {err.Message}");
             Console.WriteLine($"Stack Trace: {err.StackTrace}");
-            return StatusCode(500, new { error = "Unexpected error deleting queue entry" });
+            return StatusCode(500, new { error = "Unexpected error updating queue entry status" });
         }
     }
 
-    [HttpGet("{queueId:int}/{userId}/estimate-wait-time")]
-    public async Task<ActionResult<EstimatedWaitTimeDTO>> EstimateWaitTimeController(int queueId, string userId)
-    {
-        try
-        {
-            var estimatedWaitTime = await _queueEntryService.EstimateWaitTime(queueId, userId);
-            return Ok(estimatedWaitTime);
-        }
-        catch (KeyNotFoundException err)
-        {
-            return NotFound(new { error = err.Message });
-        }
-        catch (ArgumentNullException err)
-        {
-            return BadRequest(new { error = err.Message });
-        }
-        catch (ArgumentOutOfRangeException err)
-        {
-            return BadRequest(new { error = err.Message });
-        }
-        catch (ArgumentException err)
-        {
-            return BadRequest(new { error = err.Message });
-        }
-        catch(Exception err)
-        {
-            Console.WriteLine($"Error in QueueEntryController.EstimateWaitTimeController: {err.Message}");
-            Console.WriteLine($"Stack Trace: {err.StackTrace}");
-            return StatusCode(500, new { error = "Unexpected error estimating wait time" });
-        }
-    }
 }

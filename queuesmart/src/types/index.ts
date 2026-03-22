@@ -1,6 +1,6 @@
 export type Priority = 'High' | 'Medium' | 'Low';
-export type QueueStatus = 'open' | 'closed';
-export type QueueEntryStatus = 'Waiting' | 'Served' | 'Cancelled' | "Pending";
+export type QueueStatus = 'Open' | 'Closed';
+export type QueueEntryStatus = 'Waiting' | 'Served' | 'Cancelled' | 'Pending' | 'InProgress' | 'Removed' | 'Completed';
 export type UserRole = 'Admin' | 'Patient' | 'Staff';
 
 // User & Profile (Combined for convenience in frontend display)
@@ -33,6 +33,7 @@ export interface Queue {
 
 // Queue Entry (User in a Queue)
 export interface QueueEntry {
+    id: number;
     queueId: number;
     userId: string;
     // Joined user details for display

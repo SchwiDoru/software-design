@@ -15,7 +15,7 @@ const priorityBadgeClasses: Record<Priority, string> = {
 };
 
 function getEntryKey(entry: QueueEntry) {
-  return `${entry.queueId}:${entry.userId}`;
+  return `${entry.id}`;
 }
 
 function formatJoinTime(joinTime: string) {
@@ -107,7 +107,7 @@ export default function PendingQueueEntries() {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/queueentry/${entry.queueId}/${encodeURIComponent(entry.userId)}`,
+        `${import.meta.env.VITE_API_URL}/queueentry/${entry.id}/update-pending`,
         {
           method: "PUT",
           headers: {
@@ -127,7 +127,7 @@ export default function PendingQueueEntries() {
       const updatedEntry: QueueEntry = await response.json();
 
       setEntries((previous) => previous.map((item) => {
-        if (item.queueId === entry.queueId && item.userId === entry.userId) {
+        if (item.id === entry.id) {
           return updatedEntry;
         }
 

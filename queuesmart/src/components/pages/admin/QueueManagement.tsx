@@ -4,10 +4,16 @@ import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import type { DropResult } from "@hello-pangea/dnd";
 import AdminLayout from "../../admin/AdminLayout";
 import { Button } from "../../ui/Button";
-import type { Queue, QueueEntry } from "../../../types";
+import type { Queue, QueueEntry, QueueEntryStatus } from "../../../types";
 
 type QueueOrderSnapshot = {
-  userId: string;
+  id: number;
+  position: number;
+};
+
+type PendingReorderMove = {
+  queueId: number;
+  entryId: number;
   position: number;
 };
 
@@ -19,7 +25,7 @@ const createQueueOrderSnapshots = (queueEntries: QueueEntry[]) => {
 
     const existingSnapshots = snapshots[entry.queueId] ?? [];
     existingSnapshots.push({
-      userId: entry.userId,
+      id: entry.id,
       position: entry.position
     });
     snapshots[entry.queueId] = existingSnapshots.sort((left, right) => left.position - right.position);
@@ -34,6 +40,7 @@ export default function QueueManagement() {
   const [queues, setQueues] = useState<Queue[]>([]);
   const [entries, setEntries] = useState<QueueEntry[]>([]);
   const [savedQueueOrders, setSavedQueueOrders] = useState<Record<number, QueueOrderSnapshot[]>>({});
+  const [pendingReorderMoves, setPendingReorderMoves] = useState<PendingReorderMove[]>([]);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
 
   useEffect(() => {
@@ -76,10 +83,12 @@ export default function QueueManagement() {
         const data = await response.json();
         setEntries(data);
         setSavedQueueOrders(createQueueOrderSnapshots(data));
+        setPendingReorderMoves([]);
       } catch (error) {
         console.error("Error fetching queue entries:", error);
         setEntries([]);
         setSavedQueueOrders({});
+        setPendingReorderMoves([]);
       }
     };
 
@@ -128,7 +137,7 @@ export default function QueueManagement() {
 
     return currentQueueEntries.some((entry, index) => {
       const savedEntry = savedOrder[index];
-      return !savedEntry || savedEntry.userId !== entry.userId || savedEntry.position !== entry.position;
+      return !savedEntry || savedEntry.id !== entry.id || savedEntry.position !== entry.position;
     });
   }, [currentQueueEntries, savedQueueOrders, selectedQueueId]);
 
@@ -140,7 +149,7 @@ export default function QueueManagement() {
     console.log(
       "Current queue entry state positions",
       currentQueueEntries.map((entry) => ({
-        userId: entry.userId,
+        id: entry.id,
         position: entry.position
       }))
     );
@@ -178,7 +187,7 @@ export default function QueueManagement() {
       return;
     }
 
-    const savedPositionsByUserId = new Map(savedOrder.map((entry) => [entry.userId, entry.position]));
+    const savedPositionsById = new Map(savedOrder.map((entry) => [entry.id, entry.position]));
 
     updateEntries((previous) => {
       return previous.map((entry) => {
@@ -186,7 +195,7 @@ export default function QueueManagement() {
           return entry;
         }
 
-        const savedPosition = savedPositionsByUserId.get(entry.userId);
+        const savedPosition = savedPositionsById.get(entry.id);
         if (savedPosition === undefined) {
           return entry;
         }
@@ -197,6 +206,8 @@ export default function QueueManagement() {
         };
       });
     });
+
+    setPendingReorderMoves((previous) => previous.filter((move) => move.queueId !== selectedQueueId));
   };
 
   const handleConfirmOrder = async () => {
@@ -207,17 +218,17 @@ export default function QueueManagement() {
     setIsSavingOrder(true);
 
     try {
-      const orderedEntries = [...currentQueueEntries].sort((left, right) => left.position - right.position);
+      const queueMoves = pendingReorderMoves.filter((move) => move.queueId === selectedQueueId);
 
-      for (const entry of orderedEntries) {
+      for (const move of queueMoves) {
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/queueentry/${selectedQueueId}/${encodeURIComponent(entry.userId)}/position`,
+          `${import.meta.env.VITE_API_URL}/queueentry/${move.entryId}/position`,
           {
             method: "PUT",
             headers: {
               "Content-Type": "application/json"
             },
-            body: JSON.stringify({ position: entry.position })
+            body: JSON.stringify({ position: move.position })
           }
         );
 
@@ -226,13 +237,16 @@ export default function QueueManagement() {
         }
       }
 
+      const orderedEntries = [...currentQueueEntries];
+
       setSavedQueueOrders((previous) => ({
         ...previous,
         [selectedQueueId]: orderedEntries.map((entry) => ({
-          userId: entry.userId,
+          id: entry.id,
           position: entry.position
         }))
       }));
+      setPendingReorderMoves((previous) => previous.filter((move) => move.queueId !== selectedQueueId));
     } catch (error) {
       console.error("Error saving queue order:", error);
     } finally {
@@ -240,18 +254,33 @@ export default function QueueManagement() {
     }
   };
 
-  const handleServeNext = () => {
+  const handleServeNext = async () => {
     if (!selectedQueueId || currentQueueEntries.length === 0) {
       return;
     }
 
     const nextUser = currentQueueEntries[0];
-    if (!window.confirm(`Serve next patient: ${nextUser.user?.name}?`)) {
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/queueentry/${nextUser.id}/status`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "InProgress" satisfies QueueEntryStatus })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    } catch (error) {
+      console.error("Error updating queue entry status:", error);
       return;
     }
 
     updateEntries((previous) => {
-      const filtered = previous.filter((entry) => entry.userId !== nextUser.userId);
+      const filtered = previous.filter((entry) => entry.id !== nextUser.id);
       const otherQueues = filtered.filter((entry) => entry.queueId !== selectedQueueId);
       const thisQueue = filtered
         .filter((entry) => entry.queueId === selectedQueueId)
@@ -262,13 +291,31 @@ export default function QueueManagement() {
     });
   };
 
-  const handleRemoveUser = (userId: string) => {
-    if (!selectedQueueId || !window.confirm("Are you sure you want to remove this user from the queue?")) {
+  const handleRemoveUser = async (entryId: number) => {
+    if (!selectedQueueId) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/queueentry/${entryId}/status`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "Removed" satisfies QueueEntryStatus })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    } catch (error) {
+      console.error("Error removing user from queue:", error);
       return;
     }
 
     updateEntries((previous) => {
-      const filtered = previous.filter((entry) => entry.userId !== userId);
+      const filtered = previous.filter((entry) => entry.id !== entryId);
       const otherQueues = filtered.filter((entry) => entry.queueId !== selectedQueueId);
       const thisQueue = filtered
         .filter((entry) => entry.queueId === selectedQueueId)
@@ -291,6 +338,11 @@ export default function QueueManagement() {
       return;
     }
 
+    const movedEntryId = currentQueueEntries[sourceIndex]?.id;
+    if (!movedEntryId) {
+      return;
+    }
+
     updateEntries((previous) => {
       const queueItems = previous
         .filter((entry) => entry.queueId === selectedQueueId && entry.status === "Waiting")
@@ -306,6 +358,15 @@ export default function QueueManagement() {
       const otherQueueItems = previous.filter((entry) => entry.queueId !== selectedQueueId);
       return [...otherQueueItems, ...updatedQueueItems];
     });
+
+    setPendingReorderMoves((previous) => [
+      ...previous,
+      {
+        queueId: selectedQueueId,
+        entryId: movedEntryId,
+        position: destinationIndex
+      }
+    ]);
   };
 
   return (
@@ -330,7 +391,7 @@ export default function QueueManagement() {
                   <div className="flex items-start justify-between">
                     <span className="font-semibold text-foreground">{queue.service?.name}</span>
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${queue.status === "open" ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${queue.status === "Open" ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"
                         }`}
                     >
                       {queue.status}
@@ -395,7 +456,7 @@ export default function QueueManagement() {
                       <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
                         {currentQueueEntries.length > 0 ? (
                           currentQueueEntries.map((entry, index) => (
-                            <Draggable key={entry.userId.toString()} draggableId={entry.userId.toString()} index={index}>
+                            <Draggable key={entry.id.toString()} draggableId={entry.id.toString()} index={index}>
                               {(draggableProvided, snapshot) => (
                                 <div
                                   ref={draggableProvided.innerRef}
@@ -437,7 +498,7 @@ export default function QueueManagement() {
                                   </div>
 
                                   <button
-                                    onClick={() => handleRemoveUser(entry.userId)}
+                                    onClick={() => handleRemoveUser(entry.id)}
                                     className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600"
                                     title="Remove from queue"
                                   >

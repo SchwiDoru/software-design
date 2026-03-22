@@ -9,9 +9,9 @@ namespace Backend.Controllers;
 [Route("[controller]")]
 public class QueueController: ControllerBase
 {
-    private readonly QueueService _queueService;
+    private readonly IQueueService _queueService;
 
-    public QueueController(QueueService queueService)
+    public QueueController(IQueueService queueService)
     {
         _queueService = queueService;
     }
@@ -79,6 +79,38 @@ public class QueueController: ControllerBase
             Console.WriteLine($"Error in QueueController.CreateQueueController: {err.Message}");
             Console.WriteLine($"Stack Trace: {err.StackTrace}");
             return BadRequest(new { error = err.Message });
+        }
+    }
+
+    [HttpPut("{id:int}/status")]
+    public async Task<ActionResult<Queue>> UpdateQueueStatusController(int id, UpdateQueueStatusDTO queueDTO)
+    {
+        try
+        {
+            var updatedQueue = await _queueService.UpdateQueueStatus(id, queueDTO.Status);
+            return Ok(updatedQueue);
+        }
+        catch (KeyNotFoundException err)
+        {
+            return NotFound(new { error = err.Message });
+        }
+        catch (ArgumentNullException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch (ArgumentOutOfRangeException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch (ArgumentException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch(Exception err)
+        {
+            Console.WriteLine($"Error in QueueController.UpdateQueueStatusController: {err.Message}");
+            Console.WriteLine($"Stack Trace: {err.StackTrace}");
+            return StatusCode(500, new { error = "Unexpected error updating queue status" });
         }
     }
 }

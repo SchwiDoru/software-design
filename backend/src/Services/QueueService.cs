@@ -1,10 +1,11 @@
 using Backend.Constants;
 using Backend.Models;
 using Microsoft.EntityFrameworkCore;
+using Backend.Data;
 
 namespace Backend.Services;
 
-public class QueueService
+public class QueueService : IQueueService
 {
     private readonly AppDbContext _dbContext;
 
@@ -68,6 +69,48 @@ public class QueueService
         catch(Exception err)
         {
             throw new Exception("Unexpected error occurred when creating a new queue: ", err);
+        }
+    }
+
+    public async Task<Queue> UpdateQueueStatus(int id, QueueStatus status)
+    {
+        if (id <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(id), "Queue ID must be greater than 0");
+        }
+        if (!Enum.IsDefined(typeof(QueueStatus), status))
+        {
+            throw new ArgumentException("Error updating queue status: queue status is invalid", nameof(status));
+        }
+
+        try
+        {
+            var existingQueue = await _dbContext.Queues
+                .Include(q => q.Service)
+                .FirstOrDefaultAsync(q => q.Id == id);
+
+            if (existingQueue == null)
+            {
+                throw new KeyNotFoundException($"Queue with ID {id} was not found");
+            }
+
+            existingQueue.Status = status;
+
+            await _dbContext.SaveChangesAsync();
+
+            return existingQueue;
+        }
+        catch (KeyNotFoundException)
+        {
+            throw;
+        }
+        catch (ArgumentException)
+        {
+            throw;
+        }
+        catch(Exception err)
+        {
+            throw new Exception("Unexpected error occurred when updating queue status: ", err);
         }
     }
 }
