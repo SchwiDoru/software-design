@@ -496,6 +496,60 @@ public class QueueEntryServiceTests: IDisposable
         Assert.Null(updatedQueueEntry.Position);
     }
 
+    [Fact]
+    public async Task DeleteQueueEntry_WhenValidQueueIdAndUserId_DeletesEntryAndReordersPositions()
+    {
+        // Arrange
+        var entry1 = await AddWaitingQueueEntry(userId: "leave1@example.com");
+        var entry2 = await AddWaitingQueueEntry(userId: "leave2@example.com");
+        var entry3 = await AddWaitingQueueEntry(userId: "leave3@example.com");
+
+        // Act
+        var deleted = await _service.DeleteQueueEntry(1, "leave2@example.com");
+
+        // Assert
+        Assert.True(deleted);
+        var remainingWaiting = await _testDbContext.QueueEntries
+            .Where(qe => qe.QueueId == 1 && qe.Status == QueueEntryStatus.Waiting)
+            .OrderBy(qe => qe.Position)
+            .ToListAsync();
+
+        Assert.Equal(2, remainingWaiting.Count);
+        Assert.DoesNotContain(remainingWaiting, qe => qe.UserId == "leave2@example.com");
+        Assert.Equal(new int?[] { 0, 1 }, remainingWaiting.Select(qe => qe.Position).ToArray());
+    }
+
+    [Fact]
+    public async Task DeleteQueueEntry_WhenEntryDoesNotExist_ThrowsKeyNotFoundException()
+    {
+        // Act & Assert
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => _service.DeleteQueueEntry(1, "missing-user@example.com"));
+    }
+
+    [Fact]
+    public async Task EstimateWaitTime_WhenUserIsWaiting_ReturnsCalculatedWaitTime()
+    {
+        // Arrange
+        var queueEntry = await AddWaitingQueueEntry(queueId: 1, userId: "etw1@example.com", status: QueueEntryStatus.Waiting, priority: PriorityLevel.Low);
+
+        // Act
+        var estimated = await _service.EstimateWaitTime(1, "etw1@example.com");
+
+        // Assert
+        Assert.Equal(queueEntry.Position ?? -1, estimated.Position);
+        Assert.Equal(15 * (queueEntry.Position ?? 0), estimated.EstimatedWaitTimeMinutes);
+        Assert.Equal(15, estimated.ServiceDurationMinutes);
+        Assert.Equal("etw1@example.com", estimated.UserId);
+        Assert.Equal(1, estimated.QueueId);
+    }
+
+    [Fact]
+    public async Task EstimateWaitTime_WhenQueueEntryNotFound_ThrowsKeyNotFoundException()
+    {
+        // Act & Assert
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => _service.EstimateWaitTime(1, "no-such-user@example.com"));
+    }
+
     public void Dispose()
     {
         _testDbContext.Database.EnsureDeleted();

@@ -596,7 +596,7 @@ public class QueueEntryServices : IQueueEntryServices
             {
                 message = "Your position has not been assigned yet. Please wait for confirmation.";
             }
-            else if (queueEntry.Status == QueueEntryStatus.Served)
+            else if (queueEntry.Status == QueueEntryStatus.Completed)
             {
                 message = "You have already been served.";
             }
