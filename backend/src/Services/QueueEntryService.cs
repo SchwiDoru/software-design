@@ -1,4 +1,5 @@
 using Backend.Constants;
+using Backend.DTO;
 using Backend.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -367,6 +368,134 @@ public class QueueEntryServices
         catch(Exception err)
         {
             throw new Exception("Unexpected error updating queue entry: ", err);
+        }
+    }
+
+    public async Task<bool> DeleteQueueEntry(int queueId, string userId)
+    {
+        if (queueId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(queueId), "Queue ID must be greater than 0");
+        }
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("Queue entry user id (email) is required", nameof(userId));
+        }
+
+        var normalizedUserId = userId.Trim();
+
+        try
+        {
+            var existingQueueEntry = await _dbContext.QueueEntries
+                .FirstOrDefaultAsync(qe => qe.QueueId == queueId && qe.UserId == normalizedUserId);
+
+            if (existingQueueEntry == null)
+            {
+                throw new KeyNotFoundException($"Queue entry for queue ID {queueId} and user '{normalizedUserId}' was not found");
+            }
+
+            var previousPosition = existingQueueEntry.Position;
+
+            _dbContext.QueueEntries.Remove(existingQueueEntry);
+            await _dbContext.SaveChangesAsync();
+
+            // Recalculate positions for remaining entries if the deleted entry was in the waiting queue
+            if (previousPosition.HasValue)
+            {
+                await RecalculateQueuePositions(queueId, normalizedUserId, previousPosition, null);
+                await _dbContext.SaveChangesAsync();
+            }
+
+            return true;
+        }
+        catch (KeyNotFoundException)
+        {
+            throw;
+        }
+        catch (Exception err)
+        {
+            throw new Exception("Unexpected error deleting queue entry: ", err);
+        }
+    }
+
+    public async Task<EstimatedWaitTimeDTO> EstimateWaitTime(int queueId, string userId)
+    {
+        if (queueId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(queueId), "Queue ID must be greater than 0");
+        }
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("Queue entry user id (email) is required", nameof(userId));
+        }
+
+        var normalizedUserId = userId.Trim();
+
+        try
+        {
+            // Get the queue entry with related queue and service data
+            var queueEntry = await _dbContext.QueueEntries
+                .Include(qe => qe.Queue)
+                    .ThenInclude(q => q.Service)
+                .FirstOrDefaultAsync(qe => qe.QueueId == queueId && qe.UserId == normalizedUserId);
+
+            if (queueEntry == null)
+            {
+                throw new KeyNotFoundException($"Queue entry for queue ID {queueId} and user '{normalizedUserId}' was not found");
+            }
+
+            var queue = queueEntry.Queue;
+            if (queue == null)
+            {
+                throw new KeyNotFoundException($"Queue with ID {queueId} was not found");
+            }
+
+            var service = queue.Service;
+            if (service == null)
+            {
+                throw new KeyNotFoundException($"Service for queue {queueId} was not found");
+            }
+
+            // Calculate wait time based on position and service duration
+            // Formula: Position × Service Duration
+            int estimatedWaitTimeMinutes = 0;
+            string message = string.Empty;
+
+            if (queueEntry.Status == QueueEntryStatus.Waiting && queueEntry.Position.HasValue)
+            {
+                estimatedWaitTimeMinutes = queueEntry.Position.Value * service.Duration;
+                message = $"You are at position {queueEntry.Position + 1}. Estimated wait time is approximately {estimatedWaitTimeMinutes} minutes.";
+            }
+            else if (queueEntry.Status == QueueEntryStatus.Pending)
+            {
+                message = "Your position has not been assigned yet. Please wait for confirmation.";
+            }
+            else if (queueEntry.Status == QueueEntryStatus.Served)
+            {
+                message = "You have already been served.";
+            }
+            else if (queueEntry.Status == QueueEntryStatus.Cancelled)
+            {
+                message = "Your queue entry has been cancelled.";
+            }
+
+            return new EstimatedWaitTimeDTO
+            {
+                Position = queueEntry.Position ?? -1,
+                EstimatedWaitTimeMinutes = estimatedWaitTimeMinutes,
+                ServiceDurationMinutes = service.Duration,
+                UserId = normalizedUserId,
+                QueueId = queueId,
+                Message = message
+            };
+        }
+        catch (KeyNotFoundException)
+        {
+            throw;
+        }
+        catch (Exception err)
+        {
+            throw new Exception("Unexpected error estimating wait time: ", err);
         }
     }
 }

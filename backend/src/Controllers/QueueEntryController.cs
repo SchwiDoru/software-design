@@ -155,4 +155,74 @@ public class QueueEntryController: ControllerBase
             return StatusCode(500, new { error = "Unexpected error updating queue entry position" });
         }
     }
+
+    [HttpDelete("{queueId:int}/{userId}")]
+    public async Task<ActionResult> DeleteQueueEntryController(int queueId, string userId)
+    {
+        try
+        {
+            var result = await _queueEntryService.DeleteQueueEntry(queueId, userId);
+            
+            if (result)
+            {
+                return NoContent();
+            }
+            
+            return BadRequest(new { error = "Failed to delete queue entry" });
+        }
+        catch (KeyNotFoundException err)
+        {
+            return NotFound(new { error = err.Message });
+        }
+        catch (ArgumentNullException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch (ArgumentOutOfRangeException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch (ArgumentException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch(Exception err)
+        {
+            Console.WriteLine($"Error in QueueEntryController.DeleteQueueEntryController: {err.Message}");
+            Console.WriteLine($"Stack Trace: {err.StackTrace}");
+            return StatusCode(500, new { error = "Unexpected error deleting queue entry" });
+        }
+    }
+
+    [HttpGet("{queueId:int}/{userId}/estimate-wait-time")]
+    public async Task<ActionResult<EstimatedWaitTimeDTO>> EstimateWaitTimeController(int queueId, string userId)
+    {
+        try
+        {
+            var estimatedWaitTime = await _queueEntryService.EstimateWaitTime(queueId, userId);
+            return Ok(estimatedWaitTime);
+        }
+        catch (KeyNotFoundException err)
+        {
+            return NotFound(new { error = err.Message });
+        }
+        catch (ArgumentNullException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch (ArgumentOutOfRangeException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch (ArgumentException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch(Exception err)
+        {
+            Console.WriteLine($"Error in QueueEntryController.EstimateWaitTimeController: {err.Message}");
+            Console.WriteLine($"Stack Trace: {err.StackTrace}");
+            return StatusCode(500, new { error = "Unexpected error estimating wait time" });
+        }
+    }
 }
