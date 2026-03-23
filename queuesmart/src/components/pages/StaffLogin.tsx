@@ -1,7 +1,37 @@
-import { Link } from "react-router-dom"
+import { useState } from "react"
+import { Link, useNavigate } from "react-router-dom"
 import { ShieldCheck, Lock, User } from "lucide-react"
+import { getDefaultRouteForRole, loginUser, saveAuthenticatedUser } from "../../services/auth"
 
 function StaffLogin() {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await loginUser({ email, password });
+
+      if (response.user.role === "Patient") {
+        setError("Patient accounts should use the patient login page.");
+        return;
+      }
+
+      saveAuthenticatedUser(response);
+      navigate(getDefaultRouteForRole(response.user.role));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to authorize login right now.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     /* bg-slate-900 ensures this page looks different from the patient side */
     <div className="min-h-screen bg-slate-900 flex items-center justify-center px-4"> 
@@ -19,13 +49,16 @@ function StaffLogin() {
         </h2>
 
         {/* Login Form */}
-        <div className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div className="relative">
             <User className="absolute left-3 top-3.5 text-slate-400" size={18} />
             <input 
-              type="text" 
-              placeholder="Staff ID or Email" 
+              type="email" 
+              placeholder="Work Email" 
               className="w-full px-10 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-slate-900 transition-colors" 
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
             />
           </div>
 
@@ -35,13 +68,22 @@ function StaffLogin() {
               type="password" 
               placeholder="Password" 
               className="w-full px-10 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-slate-900 transition-colors" 
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
             />
           </div>
 
-          <button className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg active:scale-[0.98]">
-            Authorize Login
+          {error ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
+
+          <button className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-lg active:scale-[0.98]" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Authorizing..." : "Authorize Login"}
           </button>
-        </div>
+        </form>
 
         {/* Action Links */}
         <div className="mt-8 text-center space-y-3 pt-6 border-t border-slate-100">
@@ -53,10 +95,10 @@ function StaffLogin() {
           </Link>
           
           <Link 
-            to="/idk" 
+            to="/login" 
             className="block text-[10px] text-slate-400 hover:text-blue-500 uppercase tracking-widest transition-all"
           >
-            Forgot Staff ID?
+            Back to Patient Login
           </Link>
         </div>
       </div>

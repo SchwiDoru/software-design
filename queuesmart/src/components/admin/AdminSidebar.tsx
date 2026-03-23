@@ -1,4 +1,5 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { clearAuthenticatedUser, getAuthenticatedUser } from "../../services/auth";
 
 interface AdminSidebarProps {
   isOpen: boolean;
@@ -7,6 +8,8 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const authenticatedUser = getAuthenticatedUser();
   const isActive = (path: string) => location.pathname === path;
 
   const links = [
@@ -15,6 +18,12 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
     { name: "Manage Queues", path: "/admin/queue" },
     { name: "Patients", path: "/admin/patients" },
   ];
+
+  const handleLogout = () => {
+    clearAuthenticatedUser();
+    onClose();
+    navigate("/staff-login");
+  };
 
   return (
     <>
@@ -35,6 +44,11 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
             QueueSmart <span className="gradient-text">Admin</span>
           </Link>
           <p className="mt-3 font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Clinic operations</p>
+          {authenticatedUser ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              Signed in as <span className="font-medium text-foreground">{authenticatedUser.name}</span>
+            </p>
+          ) : null}
         </div>
 
         <nav className="flex-1 space-y-2 p-4">
@@ -61,6 +75,13 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
           >
             Live Site
           </Link>
+          <button
+            type="button"
+            className="mt-2 block w-full rounded-xl px-4 py-3 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            onClick={handleLogout}
+          >
+            Logout
+          </button>
         </div>
       </aside>
     </>
