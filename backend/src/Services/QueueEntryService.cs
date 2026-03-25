@@ -522,10 +522,12 @@ public class QueueEntryServices : IQueueEntryServices
 
             var previousPosition = existingQueueEntry.Position;
 
-            _dbContext.QueueEntries.Remove(existingQueueEntry);
+            existingQueueEntry.Status = QueueEntryStatus.Cancelled;
+            existingQueueEntry.Position = null;
+
             await _dbContext.SaveChangesAsync();
 
-            // Recalculate positions for remaining entries if the deleted entry was in the waiting queue
+            // Recalculate positions for remaining entries if the cancelled entry was in the waiting queue
             if (previousPosition.HasValue)
             {
                 await RecalculateQueuePositions(queueId, normalizedUserId, previousPosition, null);
@@ -540,7 +542,7 @@ public class QueueEntryServices : IQueueEntryServices
         }
         catch (Exception err)
         {
-            throw new Exception("Unexpected error deleting queue entry: ", err);
+            throw new Exception("Unexpected error cancelling queue entry: ", err);
         }
     }
 

@@ -497,7 +497,7 @@ public class QueueEntryServiceTests: IDisposable
     }
 
     [Fact]
-    public async Task DeleteQueueEntry_WhenValidQueueIdAndUserId_DeletesEntryAndReordersPositions()
+    public async Task DeleteQueueEntry_WhenValidQueueIdAndUserId_CancelsEntryAndReordersPositions()
     {
         // Arrange
         var entry1 = await AddWaitingQueueEntry(userId: "leave1@example.com");
@@ -505,17 +505,22 @@ public class QueueEntryServiceTests: IDisposable
         var entry3 = await AddWaitingQueueEntry(userId: "leave3@example.com");
 
         // Act
-        var deleted = await _service.DeleteQueueEntry(1, "leave2@example.com");
+        var cancelled = await _service.DeleteQueueEntry(1, "leave2@example.com");
 
         // Assert
-        Assert.True(deleted);
+        Assert.True(cancelled);
+        var cancelledEntry = await _testDbContext.QueueEntries
+            .FirstOrDefaultAsync(qe => qe.QueueId == 1 && qe.UserId == "leave2@example.com");
+        Assert.NotNull(cancelledEntry);
+        Assert.Equal(QueueEntryStatus.Cancelled, cancelledEntry.Status);
+        Assert.Null(cancelledEntry.Position);
+
         var remainingWaiting = await _testDbContext.QueueEntries
             .Where(qe => qe.QueueId == 1 && qe.Status == QueueEntryStatus.Waiting)
             .OrderBy(qe => qe.Position)
             .ToListAsync();
 
         Assert.Equal(2, remainingWaiting.Count);
-        Assert.DoesNotContain(remainingWaiting, qe => qe.UserId == "leave2@example.com");
         Assert.Equal(new int?[] { 0, 1 }, remainingWaiting.Select(qe => qe.Position).ToArray());
     }
 

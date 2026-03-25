@@ -2,6 +2,7 @@ import Navbar from "../Navbar";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Users, Clock, ArrowRight, AlertCircle } from "lucide-react";
+import { createQueueEntry, estimateWaitTime } from "../../services/queueEntry";
 
 // Corrected paths: ../../ reaches the root 'data' folder from 'components/pages'
 import hoshinoImg from "../../data/hoshino.jpg";
@@ -16,13 +17,13 @@ function JoinQueue() {
   const minutesPerPerson = 15;
 
   const services = [
-    { id: "gen", name: "General Consultation", currentQueue: 7, color: "bg-blue-400", img: hoshinoImg },
-    { id: "vax", name: "Vaccinations", currentQueue: 3, color: "bg-pink-400", img: kaguyaImg },
-    { id: "med", name: "Medical Certificate", currentQueue: 2, color: "bg-purple-400", img: yuiImg },
-    { id: "emer", name: "Emergency", currentQueue: 1, color: "bg-red-500", img: nyanImg },
+    { queueId: 1, id: "gen", name: "General Consultation", currentQueue: 7, color: "bg-blue-400", img: hoshinoImg },
+    { queueId: 2, id: "vax", name: "Vaccinations", currentQueue: 3, color: "bg-pink-400", img: kaguyaImg },
+    { queueId: 3, id: "med", name: "Medical Certificate", currentQueue: 2, color: "bg-purple-400", img: yuiImg },
+    { queueId: 4, id: "emer", name: "Emergency", currentQueue: 1, color: "bg-red-500", img: nyanImg },
   ];
 
-  const handleJoin = (service: any) => {
+  const handleJoin = async (service: any) => {
     if (!fullName.trim()) {
       setShowError(true); // Trigger popup instead of alert
       return;
@@ -34,17 +35,28 @@ function JoinQueue() {
       return;
     }
 
-    localStorage.setItem("activeQueue", service.name);
-    
-    navigate("/status", {
-      state: {
-        totalMinutes: (service.currentQueue + 1) * minutesPerPerson,
-        fullName: fullName,
-        position: service.currentQueue + 1,
+    try {
+      await createQueueEntry({ queueId: service.queueId, userId: fullName.trim(), description: service.name });
+      const waitInfo = await estimateWaitTime(service.queueId, fullName.trim());
+
+      localStorage.setItem("activeQueue", JSON.stringify({
+        queueId: service.queueId,
+        userId: fullName.trim(),
         serviceName: service.name,
-        showSuccessModal: true 
-      }
-    });
+      }));
+
+      navigate("/status", {
+        state: {
+          totalMinutes: waitInfo.estimatedWaitTimeMinutes,
+          fullName: fullName,
+          position: waitInfo.position ?? 0,
+          serviceName: service.name,
+          showSuccessModal: true,
+        },
+      });
+    } catch (error: any) {
+      alert(`Unable to join queue: ${error?.message ?? "Unknown error"}`);
+    }
   };
 
   return (
