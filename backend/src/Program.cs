@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Backend.Models;
 using Backend.Services;
+using Backend.Services.Auth;
 using Microsoft.EntityFrameworkCore;
 using Backend.Data;
 
@@ -19,6 +20,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IServiceManager, ServiceManager>();
 builder.Services.AddScoped<IQueueService, QueueService>();
 builder.Services.AddScoped<IQueueEntryServices, QueueEntryServices>();
+builder.Services.AddSingleton<IAuthStore, InMemoryAuthStore>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 
 // Add CORS
 builder.Services.AddCors(options =>

@@ -12,6 +12,11 @@ export interface User {
     phone?: string; // Optional as per schema NULL
 }
 
+export interface AuthResponse {
+    message: string;
+    user: User;
+}
+
 // Service Management
 export interface Service {
     id: number;
