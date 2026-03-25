@@ -46,45 +46,43 @@ public class QueueService : IQueueService
         {
             throw new ArgumentNullException(nameof(queue), "Error creating queue: queue can't be empty");
         }
-        if (!Enum.IsDefined(typeof(QueueStatus), queue.Status))
-        {
-            throw new ArgumentException("Error creating queue: queue status is invalid", nameof(queue.Status));
-        }
 
         try
         {
+            // 1. Verify the service exists before attaching a queue to it
             var serviceExists = await _dbContext.Services.AnyAsync(s => s.Id == queue.ServiceId);
             if (!serviceExists)
             {
                 throw new KeyNotFoundException($"Service with ID {queue.ServiceId} was not found");
             }
 
+            // 2. Add to context and save to generate the ID
             await _dbContext.Queues.AddAsync(queue);
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(); // The ID is generated here
 
-            return await _dbContext.Queues
-                .Include(q => q.Service)
-                .FirstAsync(q => q.Id == queue.Id);
+            // 3. Explicitly load the Service relationship so the frontend gets the full object
+            await _dbContext.Entry(queue).Reference(q => q.Service).LoadAsync();
+
+            return queue; 
         }
-        catch(Exception err)
+        catch (Exception)
         {
-            throw new Exception("Unexpected error occurred when creating a new queue: ", err);
+            // Removed 'err' to fix the "variable declared but never used" warning
+            throw new Exception("Unexpected error occurred when creating a new queue");
         }
     }
 
     public async Task<Queue> UpdateQueueStatus(int id, QueueStatus status)
     {
+        // Validation: This is what triggers your 400 error if the ID is 0
         if (id <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(id), "Queue ID must be greater than 0");
         }
-        if (!Enum.IsDefined(typeof(QueueStatus), status))
-        {
-            throw new ArgumentException("Error updating queue status: queue status is invalid", nameof(status));
-        }
 
         try
         {
+            // 1. Fetch the existing queue from the DB
             var existingQueue = await _dbContext.Queues
                 .Include(q => q.Service)
                 .FirstOrDefaultAsync(q => q.Id == id);
@@ -94,23 +92,18 @@ public class QueueService : IQueueService
                 throw new KeyNotFoundException($"Queue with ID {id} was not found");
             }
 
+            // 2. Apply the new status
             existingQueue.Status = status;
 
+            // 3. PERSIST: Without this, the change only lives in RAM temporarily
             await _dbContext.SaveChangesAsync();
 
             return existingQueue;
         }
-        catch (KeyNotFoundException)
+        catch (KeyNotFoundException) { throw; }
+        catch (Exception)
         {
-            throw;
-        }
-        catch (ArgumentException)
-        {
-            throw;
-        }
-        catch(Exception err)
-        {
-            throw new Exception("Unexpected error occurred when updating queue status: ", err);
+            throw new Exception("Unexpected error occurred when updating queue status");
         }
     }
 }

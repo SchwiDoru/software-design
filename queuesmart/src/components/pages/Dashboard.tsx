@@ -37,14 +37,14 @@ export default function Dashboard() {
   }, []);
 
   const waitingEntries = useMemo(() => {
-    return entries.filter((entry) => entry.status === "waiting").sort((a, b) => a.position - b.position);
+    return entries.filter((entry) => entry.status === "Waiting").sort((a, b) => a.position - b.position);
   }, [entries]);
 
   const patients = useMemo<User[]>(() => {
     const patientsMap = new Map<number, User>();
     waitingEntries.forEach((entry) => {
-      if (entry.user && !patientsMap.has(entry.userId)) {
-        patientsMap.set(entry.userId, entry.user);
+      if (entry.user && !patientsMap.has(Number(entry.userId))) {
+        patientsMap.set(Number(entry.userId), entry.user);
       }
     });
     return Array.from(patientsMap.values());
@@ -63,7 +63,7 @@ export default function Dashboard() {
     }
   }, [patientId, patients, searchParams, setSearchParams]);
 
-  const currentEntry = waitingEntries.find((entry) => entry.userId === patientId);
+  const currentEntry = waitingEntries.find((entry) => Number(entry.userId) === patientId);
   const currentPatient = patients.find((patient) => patient.id === patientId);
   const currentQueue = queues.find((queue) => queue.id === currentEntry?.queueId);
 
@@ -80,7 +80,7 @@ export default function Dashboard() {
   const estimatedMinutes = currentEntry
     ? (currentEntry.position - 1) * (currentQueue?.service?.duration ?? 15)
     : 0;
-  const openQueues = queues.filter((queue) => queue.status === "open");
+  const openQueues = queues.filter((queue) => (queue.status as any) === "open" || (queue.status as any) === 1);
 
   const derivedStatus: PatientStatus = !currentEntry
     ? "Served"
@@ -250,7 +250,7 @@ export default function Dashboard() {
                   {queueEntries.slice(0, 5).map((entry) => (
                     <li
                       key={entry.userId}
-                      className={`flex items-center justify-between rounded-xl border p-3 ${entry.userId === patientId ? "border-accent/30 bg-accent/5" : "border-border bg-card"
+                      className={`flex items-center justify-between rounded-xl border p-3 ${Number(entry.userId) === patientId ? "border-accent/30 bg-accent/5" : "border-border bg-card"
                         }`}
                     >
                       <div className="flex items-center gap-3">
@@ -268,7 +268,7 @@ export default function Dashboard() {
                           </p>
                         </div>
                       </div>
-                      {entry.userId === patientId ? (
+                      {Number(entry.userId) === patientId ? (
                         <span className="rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-white">You</span>
                       ) : null}
                     </li>

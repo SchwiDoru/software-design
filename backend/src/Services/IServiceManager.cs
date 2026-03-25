@@ -8,4 +8,5 @@ public interface IServiceManager
     Task<Service?> GetServiceById(int id);
     Task<Service?> UpdateService(int id, Service updatedService);
     Task<Service> CreateService(Service service);
+    Task<bool> DeleteService(int id);
 }

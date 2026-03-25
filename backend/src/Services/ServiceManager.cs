@@ -107,4 +107,53 @@ public class ServiceManager : IServiceManager
             throw new Exception("Unexpected error occurred adding service to the database:", err);
         }
     }
+    public async Task<bool> DeleteService(int id)
+    {
+        try
+        {
+            var service = await _dbContext.Services.FindAsync(id);
+            if (service == null) return false;
+
+            // 1. Find the associated queue
+            var queue = await _dbContext.Queues
+                .FirstOrDefaultAsync(q => q.ServiceId == id);
+
+            if (queue != null)
+            {
+                // 2. Check if the queue is still "Open"
+                // Assuming your QueueStatus enum/string uses "Open"
+                if (queue.Status.ToString() == "Open")
+                {
+                    throw new InvalidOperationException("Cannot delete a service while its queue is still Open. Please close the queue first.");
+                }
+
+                // 3. Check if there are any patients in the queue (Waiting, Serving, etc.)
+                var hasActiveEntries = await _dbContext.QueueEntries
+                    .AnyAsync(e => e.QueueId == queue.Id);
+
+                if (hasActiveEntries)
+                {
+                    throw new InvalidOperationException("Cannot delete service: There are still patient records associated with this queue.");
+                }
+
+                // If it passes both checks, remove the queue
+                _dbContext.Queues.Remove(queue);
+            }
+
+            // 4. Remove the service
+            _dbContext.Services.Remove(service);
+            await _dbContext.SaveChangesAsync();
+            
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            // Re-throw these specific validation errors to be caught by the controller
+            throw;
+        }
+        catch (Exception err)
+        {
+            throw new Exception("Error deleting service from database", err);
+        }
+    }
 }

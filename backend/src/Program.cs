@@ -22,6 +22,7 @@ builder.Services.AddScoped<IQueueService, QueueService>();
 builder.Services.AddScoped<IQueueEntryServices, QueueEntryServices>();
 builder.Services.AddSingleton<IAuthStore, InMemoryAuthStore>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IHistoryService, HistoryService>();
 
 // Add CORS
 builder.Services.AddCors(options =>
