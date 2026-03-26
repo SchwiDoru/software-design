@@ -89,26 +89,4 @@ public class ServiceController: ControllerBase
             return BadRequest(new { error = err.Message });
         }
     }
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteServiceController(int id)
-    {
-        try
-        {
-            var result = await _serviceManager.DeleteService(id);
-            if (!result)
-            {
-                return NotFound(new { error = $"Service with ID {id} not found" });
-            }
-            return NoContent();
-        }
-        catch (InvalidOperationException ex)
-        {
-            // This returns a 400 Bad Request with your custom message
-            return BadRequest(new { error = ex.Message });
-        }
-        catch (Exception)
-        {
-            return StatusCode(500, new { error = "An unexpected error occurred." });
-        }
-    }
 }

@@ -4,7 +4,6 @@ using Backend.Models;
 using Backend.Services;
 using Backend.Tests.Data;
 using Microsoft.EntityFrameworkCore;
-using Xunit; // Ensure Xunit is included
 
 namespace Backend.Tests.Services;
 
@@ -36,11 +35,11 @@ public class ServiceManagerTests : IDisposable
     [Fact]
     public async Task GetServices_ReturnsSeededServices()
     {
-        // FIX: Changed _service to _serviceManager to match the class field
-        var result = await _serviceManager.GetServices();
-        
-        // Using a predicate to avoid reference equality issues
-        Assert.Contains(result, s => s.Id == 1 && s.Name == "Clinic");
+        var services = await _serviceManager.GetServices();
+
+        Assert.NotNull(services);
+        Assert.NotEmpty(services);
+        Assert.Contains(services, service => service.Name == "Testing Service");
     }
 
     [Fact]

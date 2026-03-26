@@ -1,40 +1,62 @@
-import { Link } from "react-router-dom";
-// Added CheckCircle2 to imports
-import { Pill, ChevronLeft, Activity, Stethoscope, Microscope, CheckCircle2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom"; // Added useParams
+import { Pill, ChevronLeft, Activity, Stethoscope, Microscope, CheckCircle2, Loader2 } from "lucide-react";
 import Navbar from "../Navbar";
 
-export default function HistoryDetailPage() {
-  const mockDetail = {
-    id: "QS-2025-1024-99",
-    date: "October 24, 2025",
-    clinic: "City Health Hub",
-    encounters: [
-      {
-        service: "Initial Assessment",
-        type: "Consultation",
-        assessment: "Patient reported sharp chest pain and shortness of breath starting 2 hours ago. Heart rate elevated at 110bpm.",
-        diagnosis: "Suspected Tachycardia",
-        prescriptions: [{ name: "Aspirin 81mg", instructions: "1 tablet • Immediate" }]
-      },
-      {
-        service: "Diagnostic Imaging",
-        type: "Radiology",
-        assessment: "Chest X-Ray performed to rule out pulmonary issues. Lungs appear clear; no signs of pneumonia.",
-        diagnosis: "Normal Lung Function",
-        prescriptions: []
-      },
-      {
-        service: "Laboratory Work",
-        type: "Blood Test",
-        assessment: "Full blood count and cardiac enzyme markers (Troponin) requested. Results pending further review.",
-        diagnosis: "Pending Results",
-        prescriptions: [{ name: "Beta Blocker", instructions: "1 tablet • 2x daily" }]
-      }
-    ]
-  };
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 
-  // ADD THIS LINE: It gathers all prescriptions from all encounters into one list
-  const allMeds = mockDetail.encounters.flatMap(enc => enc.prescriptions);
+export default function HistoryDetailPage() {
+  const { id } = useParams(); // Grabs the ID from the URL
+  const [visit, setVisit] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchVisitDetail = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`${API_URL}/History/${id}`);
+        if (!response.ok) throw new Error("Failed to fetch visit details");
+        const data = await response.json();
+        setVisit(data);
+      } catch (error) {
+        console.error("Error:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (id) fetchVisitDetail();
+  }, [id]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Navbar />
+        <div className="flex-grow flex flex-col items-center justify-center text-muted-foreground">
+          <Loader2 className="animate-spin mb-4" size={32} />
+          <p>Loading visit details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state if no visit found
+  if (!visit) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <Navbar />
+        <div className="flex-grow flex flex-col items-center justify-center">
+          <p className="text-xl font-bold">Visit not found</p>
+          <Link to="/history" className="text-accent hover:underline mt-4">Back to History</Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Gathers all prescriptions from all encounters into one list
+  // Note: Using optional chaining ?. in case encounters or prescriptions are missing
+  const allMeds = visit.encounters?.flatMap((enc: any) => enc.prescriptions || []) || [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -48,12 +70,14 @@ export default function HistoryDetailPage() {
               <ChevronLeft size={14} /> Back to History
             </Link>
             <h1 className="text-5xl text-white font-display">Visit <span className="gradient-text">Details</span></h1>
-            <p className="mt-2 text-white/60">{mockDetail.date} • {mockDetail.clinic}</p>
+            <p className="mt-2 text-white/60">
+              {new Date(visit.date || visit.completedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} • {visit.clinic || "City Health Hub"}
+            </p>
           </div>
           
           <div className="hidden md:block bg-white/5 border border-white/10 rounded-2xl p-4 text-right">
             <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-white/40 mb-1">Queue Reference</p>
-            <p className="text-white font-mono text-lg font-bold">{mockDetail.id}</p>
+            <p className="text-white font-mono text-lg font-bold">{visit.id || visit.historyID}</p>
           </div>
         </div>
       </header>
@@ -67,10 +91,10 @@ export default function HistoryDetailPage() {
             <span className="section-label-text">Service Breakdown</span>
           </div>
 
-          {mockDetail.encounters.map((enc, idx) => (
+          {visit.encounters?.map((enc: any, idx: number) => (
             <div key={idx} className="surface-card p-8 relative overflow-hidden group">
               <div className="absolute top-6 right-6 text-muted-foreground/10 group-hover:text-accent/10 transition-colors">
-                {enc.type === "Consultation" && <Stethoscope size={64} />}
+                {(enc.type === "Consultation" || enc.type === "General") && <Stethoscope size={64} />}
                 {enc.type === "Radiology" && <Activity size={64} />}
                 {enc.type === "Blood Test" && <Microscope size={64} />}
               </div>
@@ -82,11 +106,13 @@ export default function HistoryDetailPage() {
                 <div className="space-y-6">
                   <div>
                     <h5 className="text-xs font-mono uppercase text-muted-foreground mb-2">Clinical Assessment</h5>
-                    <p className="text-foreground/80 leading-relaxed italic border-l-2 border-muted pl-4">"{enc.assessment}"</p>
+                    <p className="text-foreground/80 leading-relaxed italic border-l-2 border-muted pl-4">
+                      "{enc.assessment || "No assessment notes provided."}"
+                    </p>
                   </div>
                   <div>
                     <h5 className="text-xs font-mono uppercase text-muted-foreground mb-1">Diagnosis</h5>
-                    <p className="text-lg font-medium">{enc.diagnosis}</p>
+                    <p className="text-lg font-medium">{enc.diagnosis || "Finalizing..."}</p>
                   </div>
                 </div>
               </div>
@@ -104,7 +130,7 @@ export default function HistoryDetailPage() {
 
             <div className="space-y-8">
               {allMeds.length > 0 ? (
-                allMeds.map((p, i) => (
+                allMeds.map((p: any, i: number) => (
                   <div key={i} className="border-l border-white/10 pl-6 group">
                     <p className="text-xl text-white font-medium group-hover:text-accent-secondary transition-colors">
                       {p.name}

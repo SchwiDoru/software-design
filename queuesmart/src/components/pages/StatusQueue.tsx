@@ -1,20 +1,76 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import Navbar from "../Navbar";
+import { estimateWaitTime, leaveQueue } from "../../services/queueEntry";
+
+interface QueueSession {
+  queueId: number;
+  userId: string;
+  serviceName: string;
+}
 
 function StatusQueue() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [showModal, setShowModal] = useState(location.state?.showSuccessModal || false);
-  const [countdown, setCountdown] = useState(location.state?.totalMinutes || 0);
-  const [position, setPosition] = useState(location.state?.position || 0);
+  const locationState = location.state as QueueSession & { showSuccessModal?: boolean; totalMinutes?: number; position?: number };
+  const [showModal, setShowModal] = useState(locationState?.showSuccessModal || false);
+  const [countdown, setCountdown] = useState(locationState?.totalMinutes || 0);
+  const [position, setPosition] = useState(locationState?.position || 0);
+  const [queueSession] = useState<QueueSession | null>(() => {
+    const stored = localStorage.getItem("activeQueue");
+    if (!stored) return null;
+    try {
+      return JSON.parse(stored) as QueueSession;
+    } catch {
+      return null;
+    }
+  });
 
-  const serviceName = location.state?.serviceName || "General";
+  const serviceName = location.state?.serviceName || queueSession?.serviceName || "General";
 
   // Clear success modal after user interacts or 5 seconds
   const dismissModal = () => setShowModal(false);
 
-  const handleLeave = () => {
+  useEffect(() => {
+    let timer: number | undefined;
+
+    const refreshWaitTime = async () => {
+      const session = queueSession || locationState;
+      if (!session || !session.queueId || !session.userId) {
+        return; // nothing to query
+      }
+
+      try {
+        const waitInfo = await estimateWaitTime(session.queueId, session.userId);
+        setPosition(waitInfo.position ?? 0);
+        setCountdown(waitInfo.estimatedWaitTimeMinutes);
+      } catch (error) {
+        console.warn("Failed to get wait-time", error);
+      }
+    };
+
+    refreshWaitTime();
+
+    timer = window.setInterval(() => {
+      refreshWaitTime();
+    }, 15000);
+
+    return () => {
+      if (timer !== undefined) {
+        window.clearInterval(timer);
+      }
+    };
+  }, [queueSession, location.state]);
+
+  const handleLeave = async () => {
+    if (queueSession) {
+      try {
+        await leaveQueue(queueSession.queueId, queueSession.userId);
+      } catch (error: any) {
+        console.warn("Error leaving queue", error);
+      }
+    }
+
     localStorage.removeItem("activeQueue"); // Unlock queue
     navigate("/join");
   };

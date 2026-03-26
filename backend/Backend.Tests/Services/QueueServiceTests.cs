@@ -4,7 +4,6 @@ using Backend.Models;
 using Backend.Services;
 using Backend.Tests.Data;
 using Microsoft.EntityFrameworkCore;
-using Xunit;
 
 namespace Backend.Tests.Services;
 
@@ -32,8 +31,7 @@ public class QueueServiceTests : IDisposable
     [Fact]
     public async Task GetQueueById_WhenQueueExists_ReturnsQueueWithService()
     {
-        // FIX: Added serviceId (1) to match IQueueService signature
-        var queue = await _service.GetQueueById(1, 1);
+        var queue = await _service.GetQueueById(1);
 
         Assert.NotNull(queue);
         Assert.Equal(1, queue.Id);
@@ -41,12 +39,11 @@ public class QueueServiceTests : IDisposable
     }
 
     [Theory]
-    [InlineData(999, 1)]
-    [InlineData(-1, 1)]
-    public async Task GetQueueById_WhenQueueDoesNotExist_ReturnsNull(int id, int serviceId)
+    [InlineData(999)]
+    [InlineData(-1)]
+    public async Task GetQueueById_WhenQueueDoesNotExist_ReturnsNull(int id)
     {
-        // FIX: Added serviceId to parameters
-        var queue = await _service.GetQueueById(id, serviceId);
+        var queue = await _service.GetQueueById(id);
 
         Assert.Null(queue);
     }
@@ -57,7 +54,7 @@ public class QueueServiceTests : IDisposable
         var queues = await _service.GetQueues();
 
         Assert.NotNull(queues);
-        Assert.True(queues.Count >= 1); // Adjusted based on factory seeding
+        Assert.True(queues.Count >= 3);
         Assert.All(queues, queue => Assert.NotNull(queue.Service));
     }
 
@@ -68,61 +65,72 @@ public class QueueServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateQueue_WhenServiceDoesNotExist_ThrowsKeyNotFoundException()
+    public async Task CreateQueue_WithInvalidStatus_ThrowsArgumentException()
+    {
+        var queue = CreateValidQueue(status: (QueueStatus)999);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.CreateQueue(queue));
+    }
+
+    [Fact]
+    public async Task CreateQueue_WhenServiceDoesNotExist_ThrowsExceptionWithInnerKeyNotFound()
     {
         var queue = CreateValidQueue(serviceId: 999);
 
-        // Your Service throws KeyNotFoundException directly now
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => _service.CreateQueue(queue));
+        var exception = await Assert.ThrowsAsync<Exception>(() => _service.CreateQueue(queue));
+
+        Assert.NotNull(exception.InnerException);
+        Assert.IsType<KeyNotFoundException>(exception.InnerException);
     }
 
-[Fact]
-public async Task CreateQueue_WithValidData_ReturnsCreatedQueue()
-{
-    // ... Arrange ...
-    var queue = new Queue { ServiceId = 1, Status = QueueStatus.Open };
+    [Fact]
+    public async Task CreateQueue_WithValidData_ReturnsCreatedQueue()
+    {
+        var queue = CreateValidQueue();
 
-    // Act
-    var result = await _service.CreateQueue(queue);
+        var createdQueue = await _service.CreateQueue(queue);
 
-    // Assert
-    Assert.NotNull(result);
-    Assert.Equal(1, result.ServiceId);
-    Assert.Equal(QueueStatus.Open, result.Status);
-}
+        Assert.NotNull(createdQueue);
+        Assert.True(createdQueue.Id > 0);
+        Assert.Equal(1, createdQueue.ServiceId);
+        Assert.Equal(QueueStatus.Open, createdQueue.Status);
+        Assert.NotNull(createdQueue.Service);
+    }
 
     [Theory]
-    [InlineData(0, 1)]
-    [InlineData(-1, 1)]
-    public async Task UpdateQueueStatus_WithInvalidId_ThrowsArgumentOutOfRangeException(int id, int serviceId)
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task UpdateQueueStatus_WithInvalidId_ThrowsArgumentOutOfRangeException(int id)
     {
-        // FIX: Added serviceId (1)
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            _service.UpdateQueueStatus(id, serviceId, QueueStatus.Closed));
+            _service.UpdateQueueStatus(id, QueueStatus.Closed));
+    }
+
+    [Fact]
+    public async Task UpdateQueueStatus_WithInvalidStatus_ThrowsArgumentException()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _service.UpdateQueueStatus(1, (QueueStatus)999));
     }
 
     [Theory]
-    [InlineData(999, 1)]
-    [InlineData(4, 1)]
-    public async Task UpdateQueueStatus_WhenQueueDoesNotExist_ThrowsKeyNotFoundException(int id, int serviceId)
+    [InlineData(999)]
+    [InlineData(4)]
+    public async Task UpdateQueueStatus_WhenQueueDoesNotExist_ThrowsKeyNotFoundException(int id)
     {
-        // FIX: Added serviceId (1)
         await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-            _service.UpdateQueueStatus(id, serviceId, QueueStatus.Closed));
+            _service.UpdateQueueStatus(id, QueueStatus.Closed));
     }
 
     [Fact]
     public async Task UpdateQueueStatus_WithValidData_UpdatesQueueStatus()
     {
-        // FIX: Passing id (1) and serviceId (1)
-        var updatedQueue = await _service.UpdateQueueStatus(1, 1, QueueStatus.Closed);
+        var updatedQueue = await _service.UpdateQueueStatus(1, QueueStatus.Closed);
 
         Assert.Equal(1, updatedQueue.Id);
         Assert.Equal(QueueStatus.Closed, updatedQueue.Status);
 
-        // Assert directly against DB using composite key
-        var queueInDb = await _testDbContext.Queues
-            .FirstAsync(q => q.Id == 1 && q.ServiceId == 1); 
+        var queueInDb = await _testDbContext.Queues.FirstAsync(queue => queue.Id == 1);
         Assert.Equal(QueueStatus.Closed, queueInDb.Status);
     }
 
