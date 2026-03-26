@@ -1,3 +1,4 @@
+using Backend.Constants;
 using Backend.Models;
 using Backend.Services;
 using Backend.DTO;
@@ -16,22 +17,22 @@ public class QueueController: ControllerBase
         _queueService = queueService;
     }
 
-    [HttpGet("{id}")]
-    public async Task<ActionResult<Queue>> GetQueueByIdController(int id)
+    // FIX: Route now expects both parts of the key [controller]/{serviceId}/{id}
+    [HttpGet("{serviceId:int}/{id:int}")]
+    public async Task<ActionResult<Queue>> GetQueueByIdController(int id, int serviceId)
     {
         try
         {
-            var queue = await _queueService.GetQueueById(id);
+            // Updated service call to use composite key
+            var queue = await _queueService.GetQueueById(id, serviceId);
             if (queue == null)
             {
-                return NotFound(new { error = $"Queue with ID {id} not found" });
+                return NotFound(new { error = $"Queue with ID {id} for Service {serviceId} not found" });
             }
             return Ok(queue);
         }
         catch(Exception err)
         {
-            Console.WriteLine($"Error in QueueController.GetQueueByIdController: {err.Message}");
-            Console.WriteLine($"Stack Trace: {err.StackTrace}");
             return BadRequest(new { error = err.Message });
         }
     }
@@ -50,9 +51,8 @@ public class QueueController: ControllerBase
         }
         catch(Exception err)
         {
-            throw new Exception("Unexpected error fetching queues: ", err);
+            return StatusCode(500, new { error = "Unexpected error fetching queues", details = err.Message });
         }
-
     }
 
     [HttpPost]
@@ -68,48 +68,40 @@ public class QueueController: ControllerBase
             };
 
             var createdQueue = await _queueService.CreateQueue(queue);
+            
+            // FIX: CreatedAtAction must return both IDs in the route values
             return CreatedAtAction(
                 nameof(GetQueueByIdController),
-                new { id = createdQueue.Id },
+                new { id = createdQueue.Id, serviceId = createdQueue.ServiceId },
                 createdQueue
             );
         }
         catch(Exception err)
         {
-            Console.WriteLine($"Error in QueueController.CreateQueueController: {err.Message}");
-            Console.WriteLine($"Stack Trace: {err.StackTrace}");
             return BadRequest(new { error = err.Message });
         }
     }
 
-    [HttpPut("{id:int}/status")]
-    public async Task<ActionResult<Queue>> UpdateQueueStatusController(int id, UpdateQueueStatusDTO queueDTO)
+    // FIX: Status update now requires serviceId in route to locate the specific record
+    [HttpPut("{serviceId:int}/{id:int}/status")]
+    public async Task<ActionResult<Queue>> UpdateQueueStatusController(int id, int serviceId, UpdateQueueStatusDTO queueDTO)
     {
         try
         {
-            var updatedQueue = await _queueService.UpdateQueueStatus(id, queueDTO.Status);
+            // Updated service call to use composite key
+            var updatedQueue = await _queueService.UpdateQueueStatus(id, serviceId, queueDTO.Status);
             return Ok(updatedQueue);
         }
         catch (KeyNotFoundException err)
         {
             return NotFound(new { error = err.Message });
         }
-        catch (ArgumentNullException err)
-        {
-            return BadRequest(new { error = err.Message });
-        }
-        catch (ArgumentOutOfRangeException err)
-        {
-            return BadRequest(new { error = err.Message });
-        }
         catch (ArgumentException err)
         {
             return BadRequest(new { error = err.Message });
         }
-        catch(Exception err)
+        catch(Exception)
         {
-            Console.WriteLine($"Error in QueueController.UpdateQueueStatusController: {err.Message}");
-            Console.WriteLine($"Stack Trace: {err.StackTrace}");
             return StatusCode(500, new { error = "Unexpected error updating queue status" });
         }
     }

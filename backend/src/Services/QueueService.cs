@@ -14,19 +14,21 @@ public class QueueService : IQueueService
         _dbContext = dbContext;
     }
 
-    public async Task<Queue?> GetQueueById(int id)
+    public async Task<Queue?> GetQueueById(int id, int serviceId)
     {
         try
         {
             return await _dbContext.Queues
                 .Include(q => q.Service)
-                .FirstOrDefaultAsync(q => q.Id == id);
+                // FIX: Must match both parts of the composite key
+                .FirstOrDefaultAsync(q => q.Id == id && q.ServiceId == serviceId);
         }
         catch(Exception err)
         {
-            throw new Exception("Unexpected error occurred when getting queue by ID: ", err);
+            throw new Exception("Unexpected error occurred when getting queue by ID", err);
         }
     }
+
     public async Task<List<Queue>> GetQueues()
     {
         try
@@ -35,67 +37,55 @@ public class QueueService : IQueueService
         }
         catch(Exception err)
         {
-            throw new Exception("Unexpected Error getting queues: ", err);
+            throw new Exception("Unexpected Error getting queues", err);
         }
-
     }
 
     public async Task<Queue> CreateQueue(Queue queue)
     {
-        if (queue == null)
-        {
-            throw new ArgumentNullException(nameof(queue), "Error creating queue: queue can't be empty");
-        }
+        if (queue == null) throw new ArgumentNullException(nameof(queue));
 
         try
         {
-            // 1. Verify the service exists before attaching a queue to it
             var serviceExists = await _dbContext.Services.AnyAsync(s => s.Id == queue.ServiceId);
             if (!serviceExists)
             {
                 throw new KeyNotFoundException($"Service with ID {queue.ServiceId} was not found");
             }
 
-            // 2. Add to context and save to generate the ID
             await _dbContext.Queues.AddAsync(queue);
-            await _dbContext.SaveChangesAsync(); // The ID is generated here
-
-            // 3. Explicitly load the Service relationship so the frontend gets the full object
+            await _dbContext.SaveChangesAsync(); 
             await _dbContext.Entry(queue).Reference(q => q.Service).LoadAsync();
 
             return queue; 
         }
-        catch (Exception)
-        {
-            // Removed 'err' to fix the "variable declared but never used" warning
-            throw new Exception("Unexpected error occurred when creating a new queue");
-        }
+        catch (KeyNotFoundException)
+            {
+                throw; // Allow specific exception to bubble up for the test
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Unexpected error occurred when creating a new queue", ex);
+            }
     }
 
-    public async Task<Queue> UpdateQueueStatus(int id, QueueStatus status)
+    public async Task<Queue> UpdateQueueStatus(int id, int serviceId, QueueStatus status)
     {
-        // Validation: This is what triggers your 400 error if the ID is 0
-        if (id <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(id), "Queue ID must be greater than 0");
-        }
+        if (id <= 0) throw new ArgumentOutOfRangeException(nameof(id));
 
         try
         {
-            // 1. Fetch the existing queue from the DB
+            // FIX: Use both ID and ServiceId to find the unique record
             var existingQueue = await _dbContext.Queues
                 .Include(q => q.Service)
-                .FirstOrDefaultAsync(q => q.Id == id);
+                .FirstOrDefaultAsync(q => q.Id == id && q.ServiceId == serviceId);
 
             if (existingQueue == null)
             {
-                throw new KeyNotFoundException($"Queue with ID {id} was not found");
+                throw new KeyNotFoundException($"Queue with ID {id} for Service {serviceId} was not found");
             }
 
-            // 2. Apply the new status
             existingQueue.Status = status;
-
-            // 3. PERSIST: Without this, the change only lives in RAM temporarily
             await _dbContext.SaveChangesAsync();
 
             return existingQueue;
