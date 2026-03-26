@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Navbar from "../Navbar";
-import type { Queue, QueueEntry, User } from "../../types";
+import type { Queue, QueueEntry, User} from "../../types";
 import { readQueueEntries, readQueues, subscribeQueueStore } from "../../data/queueStore";
 
 type NotificationTone = "info" | "alert" | "success";
@@ -14,16 +14,17 @@ interface PatientNotification {
   createdAt: string;
 }
 
-type PatientStatus = "Waiting" | "Next" | "Ready" | "Served";
+// Keeping local type for UI state mapping
+type LocalPatientStatus = "Waiting" | "Next" | "Ready" | "Served";
 
 const nowLabel = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [queues, setQueues] = useState<Queue[]>(readQueues);
-  const [entries, setEntries] = useState<QueueEntry[]>(readQueueEntries);
-  const [patientId, setPatientId] = useState<number | null>(null);
-  const [manualStatus, setManualStatus] = useState<PatientStatus | null>(null);
+  const [queues, setQueues] = useState<Queue[]>(readQueues());
+  const [entries, setEntries] = useState<QueueEntry[]>(readQueueEntries());
+  const [patientId, setPatientId] = useState<string>(""); // Fixed: userId is string in types
+  const [manualStatus, setManualStatus] = useState<LocalPatientStatus | null>(null);
   const [isNextPopupOpen, setIsNextPopupOpen] = useState(false);
   const [notifications, setNotifications] = useState<PatientNotification[]>([]);
   const previousPositionRef = useRef<number | null>(null);
@@ -37,14 +38,15 @@ export default function Dashboard() {
   }, []);
 
   const waitingEntries = useMemo(() => {
+    // Fixed: Matches 'Waiting' from updated QueueEntryStatus
     return entries.filter((entry) => entry.status === "Waiting").sort((a, b) => a.position - b.position);
   }, [entries]);
 
   const patients = useMemo<User[]>(() => {
     const patientsMap = new Map<number, User>();
     waitingEntries.forEach((entry) => {
-      if (entry.user && !patientsMap.has(Number(entry.userId))) {
-        patientsMap.set(Number(entry.userId), entry.user);
+      if (entry.user && !patientsMap.has(entry.user.id)) {
+        patientsMap.set(entry.user.id, entry.user);
       }
     });
     return Array.from(patientsMap.values());
@@ -53,24 +55,23 @@ export default function Dashboard() {
   useEffect(() => {
     const idParam = searchParams.get("userId");
     if (idParam) {
-      setPatientId(Number(idParam));
+      setPatientId(idParam);
       return;
     }
 
-    if (!idParam && patients.length > 0 && patientId === null) {
-      setPatientId(patients[0].id);
-      setSearchParams({ userId: patients[0].id.toString() });
+    if (!idParam && patients.length > 0 && !patientId) {
+      const firstId = patients[0].id.toString();
+      setPatientId(firstId);
+      setSearchParams({ userId: firstId });
     }
   }, [patientId, patients, searchParams, setSearchParams]);
 
-  const currentEntry = waitingEntries.find((entry) => Number(entry.userId) === patientId);
-  const currentPatient = patients.find((patient) => patient.id === patientId);
+  const currentEntry = waitingEntries.find((entry) => entry.userId === patientId);
+  const currentPatient = patients.find((patient) => patient.id.toString() === patientId);
   const currentQueue = queues.find((queue) => queue.id === currentEntry?.queueId);
 
   const queueEntries = useMemo(() => {
-    if (!currentEntry) {
-      return [];
-    }
+    if (!currentEntry) return [];
     return waitingEntries
       .filter((entry) => entry.queueId === currentEntry.queueId)
       .sort((a, b) => a.position - b.position);
@@ -80,9 +81,11 @@ export default function Dashboard() {
   const estimatedMinutes = currentEntry
     ? (currentEntry.position - 1) * (currentQueue?.service?.duration ?? 15)
     : 0;
-  const openQueues = queues.filter((queue) => (queue.status as any) === "open" || (queue.status as any) === 1);
+  
+  // Fixed: Matches 'Open' from updated QueueStatus
+  const openQueues = queues.filter((queue) => queue.status === "Open");
 
-  const derivedStatus: PatientStatus = !currentEntry
+  const derivedStatus: LocalPatientStatus = !currentEntry
     ? "Served"
     : manualStatus === "Ready"
       ? "Ready"
@@ -98,14 +101,11 @@ export default function Dashboard() {
       detail,
       createdAt: nowLabel()
     };
-
     setNotifications((previous) => [item, ...previous].slice(0, 6));
   };
 
   useEffect(() => {
-    if (!currentPatient) {
-      return;
-    }
+    if (!currentPatient) return;
     setNotifications([
       {
         id: `joined-${currentPatient.id}`,
@@ -161,7 +161,7 @@ export default function Dashboard() {
     success: "border-emerald-200 bg-emerald-50 text-emerald-700"
   };
 
-  const statusStyles: Record<PatientStatus, string> = {
+  const statusStyles: Record<LocalPatientStatus, string> = {
     Waiting: "bg-blue-50 text-blue-700",
     Next: "bg-amber-50 text-amber-700",
     Ready: "bg-emerald-50 text-emerald-700",
@@ -194,11 +194,11 @@ export default function Dashboard() {
               </label>
               <select
                 className="input-field"
-                value={patientId ?? ""}
+                value={patientId}
                 onChange={(event) => {
-                  const selected = Number(event.target.value);
+                  const selected = event.target.value;
                   setPatientId(selected);
-                  setSearchParams({ userId: selected.toString() });
+                  setSearchParams({ userId: selected });
                 }}
               >
                 {patients.map((patient) => (
@@ -250,7 +250,7 @@ export default function Dashboard() {
                   {queueEntries.slice(0, 5).map((entry) => (
                     <li
                       key={entry.userId}
-                      className={`flex items-center justify-between rounded-xl border p-3 ${Number(entry.userId) === patientId ? "border-accent/30 bg-accent/5" : "border-border bg-card"
+                      className={`flex items-center justify-between rounded-xl border p-3 ${entry.userId === patientId ? "border-accent/30 bg-accent/5" : "border-border bg-card"
                         }`}
                     >
                       <div className="flex items-center gap-3">
@@ -268,7 +268,7 @@ export default function Dashboard() {
                           </p>
                         </div>
                       </div>
-                      {Number(entry.userId) === patientId ? (
+                      {entry.userId === patientId ? (
                         <span className="rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-white">You</span>
                       ) : null}
                     </li>
@@ -319,7 +319,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <p className="font-mono text-xs uppercase tracking-[0.15em] text-background/70">Queue status</p>
-                <p className="mt-2 text-2xl capitalize">{currentQueue?.status ?? "waiting"}</p>
+                <p className="mt-2 text-2xl capitalize">{currentQueue?.status ?? "Closed"}</p>
               </div>
             </div>
           </section>

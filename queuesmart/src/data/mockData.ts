@@ -4,7 +4,7 @@ export const MOCK_QUEUES: Queue[] = [
     {
         id: 1,
         serviceId: 101,
-        status: 'open',
+        status: 'Open',
         createdAt: new Date().toISOString(),
         service: {
             id: 101,
@@ -17,7 +17,7 @@ export const MOCK_QUEUES: Queue[] = [
     {
         id: 2,
         serviceId: 102,
-        status: 'closed',
+        status: 'Closed',
         createdAt: new Date().toISOString(),
         service: {
             id: 102,
@@ -30,7 +30,7 @@ export const MOCK_QUEUES: Queue[] = [
     {
         id: 3,
         serviceId: 103,
-        status: 'open',
+        status: 'Open',
         createdAt: new Date().toISOString(),
         service: {
             id: 103,
@@ -46,6 +46,7 @@ export const MOCK_ENTRIES: QueueEntry[] = [
     {
         queueId: 1,
         userId: 'john@example.com',
+        id:1,
         position: 1,
         joinTime: new Date(Date.now() - 30 * 60000).toISOString(),
         status: 'Waiting',
@@ -55,6 +56,7 @@ export const MOCK_ENTRIES: QueueEntry[] = [
     {
         queueId: 1,
         userId: 'jane@example.com',
+        id:3,
         position: 2,
         joinTime: new Date(Date.now() - 20 * 60000).toISOString(),
         status: 'Waiting',
@@ -63,7 +65,8 @@ export const MOCK_ENTRIES: QueueEntry[] = [
     },
     {
         queueId: 2,
-        userId: 'alice@example.com',
+        userId: 'alice@example.com', 
+        id:2,
         position: 1,
         joinTime: new Date(Date.now() - 10 * 60000).toISOString(),
         status: 'Waiting',
@@ -73,6 +76,7 @@ export const MOCK_ENTRIES: QueueEntry[] = [
     {
         queueId: 1,
         userId: 'bob@example.com',
+        id:4,
         position: 3,
         joinTime: new Date(Date.now() - 5 * 60000).toISOString(),
         status: 'Waiting',
