@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { clearAuthenticatedUser, getAuthenticatedUser } from "../../services/auth";
+import { useAuth } from "../auth/AuthProvider";
 
 interface AdminSidebarProps {
   isOpen: boolean;
@@ -9,7 +9,7 @@ interface AdminSidebarProps {
 export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const authenticatedUser = getAuthenticatedUser();
+  const { user: authenticatedUser, logout } = useAuth();
   const isActive = (path: string) => location.pathname === path;
 
   const links = [
@@ -19,8 +19,8 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
     { name: "Patients", path: "/admin/patients" },
   ];
 
-  const handleLogout = () => {
-    clearAuthenticatedUser();
+  const handleLogout = async () => {
+    await logout();
     onClose();
     navigate("/staff-login");
   };

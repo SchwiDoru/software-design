@@ -12,6 +12,7 @@ public class AppDbContext: DbContext
     public DbSet<Queue> Queues {get; set;}
     public DbSet<UserProfile> UserProfiles {get; set;}
     public DbSet<QueueEntry> QueueEntries {get; set;}
+    public DbSet<NotificationEvent> NotificationEvents {get; set;}
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -22,5 +23,8 @@ public class AppDbContext: DbContext
             .IsUnique()
             .HasDatabaseName("one_active_queue_per_user")
             .HasFilter($"[{nameof(QueueEntry.Status)}] IN ({(int)QueueEntryStatus.Pending}, {(int)QueueEntryStatus.Waiting}, {(int)QueueEntryStatus.InProgress})");
+
+        modelBuilder.Entity<NotificationEvent>()
+            .HasIndex(notification => new { notification.Audience, notification.UserId, notification.CreatedAt });
     }
 }

@@ -1,10 +1,12 @@
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { ShieldCheck, Lock, User } from "lucide-react"
-import { getDefaultRouteForRole, loginUser, saveAuthenticatedUser } from "../../services/auth"
+import { getDefaultRouteForRole } from "../../services/auth"
+import { useAuth } from "../auth/AuthProvider"
 
 function StaffLogin() {
   const navigate = useNavigate();
+  const { loginAsStaff } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -16,15 +18,8 @@ function StaffLogin() {
     setIsSubmitting(true);
 
     try {
-      const response = await loginUser({ email, password });
-
-      if (response.user.role === "Patient") {
-        setError("Patient accounts should use the patient login page.");
-        return;
-      }
-
-      saveAuthenticatedUser(response);
-      navigate(getDefaultRouteForRole(response.user.role));
+      const user = await loginAsStaff({ email, password });
+      navigate(getDefaultRouteForRole(user.role));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to authorize login right now.");
     } finally {

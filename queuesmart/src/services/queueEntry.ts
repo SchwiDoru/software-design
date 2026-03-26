@@ -1,4 +1,4 @@
-import type { QueueEntry, QueueEntryStatus } from "../types";
+import type { QueueEntry } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 
@@ -34,6 +34,16 @@ export async function createQueueEntry(payload: CreateQueueEntryDTO): Promise<Qu
     },
     body: JSON.stringify(payload),
   });
+  return handleResponse<QueueEntry>(response);
+}
+
+export async function getActiveQueueEntry(userId: string): Promise<QueueEntry | null> {
+  const response = await fetch(`${API_URL}/QueueEntry/active?userId=${encodeURIComponent(userId)}`);
+
+  if (response.status === 204) {
+    return null;
+  }
+
   return handleResponse<QueueEntry>(response);
 }
 

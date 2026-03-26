@@ -9,10 +9,12 @@ namespace Backend.Services;
 public class QueueEntryServices : IQueueEntryServices
 {
     private readonly AppDbContext _dbContext;
+    private readonly INotificationService _notificationService;
 
-    public QueueEntryServices(AppDbContext dbContext)
+    public QueueEntryServices(AppDbContext dbContext, INotificationService notificationService)
     {
         _dbContext = dbContext;
+        _notificationService = notificationService;
     }
 
     private async Task EnsureQueueIsOpen(int queueId)
@@ -53,7 +55,7 @@ public class QueueEntryServices : IQueueEntryServices
             throw new ArgumentException("Error queue entry user id (email) is required", nameof(queueEntry.UserId));
         }
 
-        var normalizedUserId = queueEntry.UserId.Trim();
+        var normalizedUserId = queueEntry.UserId.Trim().ToLowerInvariant();
         var joinTime = queueEntry.JoinTime;
 
         try
@@ -75,7 +77,7 @@ public class QueueEntryServices : IQueueEntryServices
 
     private async Task RecalculateQueuePositions(int queueId, string userId, int? previousPosition, int? newPosition)
     {
-        var normalizedUserId = userId.Trim();
+        var normalizedUserId = userId.Trim().ToLowerInvariant();
 
         if (newPosition.HasValue && !previousPosition.HasValue)
         {
@@ -174,6 +176,28 @@ public class QueueEntryServices : IQueueEntryServices
         }
     }
 
+    public async Task<QueueEntry?> GetActiveQueueEntry(string userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("Queue entry user id (email) is required", nameof(userId));
+        }
+
+        var normalizedUserId = userId.Trim().ToLowerInvariant();
+
+        return await _dbContext.QueueEntries
+            .Include(qe => qe.Queue!)
+                .ThenInclude(queue => queue.Service)
+            .Include(qe => qe.User)
+            .Where(qe =>
+                qe.UserId == normalizedUserId &&
+                (qe.Status == QueueEntryStatus.Pending ||
+                 qe.Status == QueueEntryStatus.Waiting ||
+                 qe.Status == QueueEntryStatus.InProgress))
+            .OrderByDescending(qe => qe.JoinTime)
+            .FirstOrDefaultAsync();
+    }
+
      public async Task<QueueEntry> CreateQueueEntry(QueueEntry? queueEntry)
     {
         if (queueEntry == null)
@@ -198,7 +222,7 @@ public class QueueEntryServices : IQueueEntryServices
         {
             throw new ArgumentException("Error queue entry user id (email) is required", nameof(queueEntry.UserId));
         }
-        var normalizedUserId = queueEntry.UserId.Trim();
+        var normalizedUserId = queueEntry.UserId.Trim().ToLowerInvariant();
         queueEntry.UserId = normalizedUserId;
 
         try
@@ -229,6 +253,7 @@ public class QueueEntryServices : IQueueEntryServices
 
             await _dbContext.QueueEntries.AddAsync(queueEntry);
             await _dbContext.SaveChangesAsync();
+            await _notificationService.CreateQueueJoinedNotification(queueEntry.Id);
             return queueEntry;
         }
         catch (KeyNotFoundException)
@@ -273,7 +298,7 @@ public class QueueEntryServices : IQueueEntryServices
                 throw new KeyNotFoundException($"Queue entry with ID {id} was not found");
             }
 
-            var normalizedUserId = existingQueueEntry.UserId.Trim();
+            var normalizedUserId = existingQueueEntry.UserId.Trim().ToLowerInvariant();
 
             if (existingQueueEntry.Status != QueueEntryStatus.Waiting || existingQueueEntry.Position == null)
             {
@@ -293,6 +318,7 @@ public class QueueEntryServices : IQueueEntryServices
 
             await RecalculateQueuePositions(existingQueueEntry.QueueId, normalizedUserId, previousPosition, existingQueueEntry.Position);
             await _dbContext.SaveChangesAsync();
+            await _notificationService.NotifyPatientIfFirstInLine(existingQueueEntry.QueueId);
 
             return existingQueueEntry;
         }
@@ -335,7 +361,7 @@ public class QueueEntryServices : IQueueEntryServices
                 throw new KeyNotFoundException($"Queue entry with ID {id} was not found");
             }
 
-            var normalizedUserId = existingQueueEntry.UserId.Trim();
+            var normalizedUserId = existingQueueEntry.UserId.Trim().ToLowerInvariant();
 
             var previousStatus = existingQueueEntry.Status;
             var previousPosition = existingQueueEntry.Position;
@@ -372,6 +398,11 @@ public class QueueEntryServices : IQueueEntryServices
 
             await RecalculateQueuePositions(existingQueueEntry.QueueId, normalizedUserId, previousPosition, updatedPosition);
             await _dbContext.SaveChangesAsync();
+            if (previousStatus == QueueEntryStatus.Pending && status == QueueEntryStatus.Waiting)
+            {
+                await _notificationService.CreatePatientQueueApprovedNotification(existingQueueEntry.Id);
+            }
+            await _notificationService.NotifyPatientIfFirstInLine(existingQueueEntry.QueueId);
 
             return existingQueueEntry;
         }
@@ -426,7 +457,7 @@ public class QueueEntryServices : IQueueEntryServices
                 throw new KeyNotFoundException($"Queue entry with ID {id} was not found");
             }
 
-            var normalizedUserId = existingQueueEntry.UserId.Trim();
+            var normalizedUserId = existingQueueEntry.UserId.Trim().ToLowerInvariant();
             existingQueueEntry.UserId = normalizedUserId;
 
             var queueExists = await _dbContext.Queues.AnyAsync(q => q.Id == existingQueueEntry.QueueId);
@@ -477,6 +508,11 @@ public class QueueEntryServices : IQueueEntryServices
 
             await RecalculateQueuePositions(existingQueueEntry.QueueId, normalizedUserId, previousPosition, updatedPosition);
             await _dbContext.SaveChangesAsync();
+            if (previousStatus == QueueEntryStatus.Pending && status == QueueEntryStatus.Waiting)
+            {
+                await _notificationService.CreatePatientQueueApprovedNotification(existingQueueEntry.Id);
+            }
+            await _notificationService.NotifyPatientIfFirstInLine(existingQueueEntry.QueueId);
             return existingQueueEntry;
         }
         catch (KeyNotFoundException)
@@ -508,7 +544,7 @@ public class QueueEntryServices : IQueueEntryServices
             throw new ArgumentException("Queue entry user id (email) is required", nameof(userId));
         }
 
-        var normalizedUserId = userId.Trim();
+        var normalizedUserId = userId.Trim().ToLowerInvariant();
 
         try
         {
@@ -534,6 +570,8 @@ public class QueueEntryServices : IQueueEntryServices
                 await _dbContext.SaveChangesAsync();
             }
 
+            await _notificationService.NotifyPatientIfFirstInLine(queueId);
+
             return true;
         }
         catch (KeyNotFoundException)
@@ -557,13 +595,13 @@ public class QueueEntryServices : IQueueEntryServices
             throw new ArgumentException("Queue entry user id (email) is required", nameof(userId));
         }
 
-        var normalizedUserId = userId.Trim();
+        var normalizedUserId = userId.Trim().ToLowerInvariant();
 
         try
         {
             // Get the queue entry with related queue and service data
             var queueEntry = await _dbContext.QueueEntries
-                .Include(qe => qe.Queue)
+                .Include(qe => qe.Queue!)
                     .ThenInclude(q => q.Service)
                 .FirstOrDefaultAsync(qe => qe.QueueId == queueId && qe.UserId == normalizedUserId);
 

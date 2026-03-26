@@ -43,11 +43,24 @@ export interface QueueEntry {
     userId: string;
     // Joined user details for display
     user?: User;
-    position: number;
+    queue?: Queue;
+    position: number | null;
     joinTime: string; // ISO Date string
     status: QueueEntryStatus;
     priority: Priority;
     description?: string;
+}
+
+export interface NotificationEvent {
+    id: number;
+    type: "QueueJoined" | "FirstInLine" | "QueueApproved";
+    audience: "AdminStaff" | "Patient";
+    title: string;
+    message: string;
+    createdAt: string;
+    userId?: string;
+    queueId?: number;
+    queueEntryId?: number;
 }
 
 // Admin Dashboard specific types

@@ -26,10 +26,10 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
-      <Route path="/join" element={<JoinQueue />} />
-      <Route path="/status" element={<StatusQueue/>}/>
       
       <Route element={<ProtectedRoute allowedRoles={["Patient"]} />}>
+        <Route path="/join" element={<JoinQueue />} />
+        <Route path="/status" element={<StatusQueue/>}/>
         <Route path="/dashboard" element={<Dashboard />} />
       </Route>
       

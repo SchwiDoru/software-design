@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../Navbar";
-import { getDefaultRouteForRole, registerUser, saveAuthenticatedUser } from "../../services/auth";
+import { getDefaultRouteForRole } from "../../services/auth";
+import { useAuth } from "../auth/AuthProvider";
 
 function UserRegister() {
   const navigate = useNavigate();
+  const { registerAsPatient } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,7 +21,7 @@ function UserRegister() {
     setIsSubmitting(true);
 
     try {
-      const response = await registerUser({
+      const user = await registerAsPatient({
         name,
         email,
         password,
@@ -27,8 +29,7 @@ function UserRegister() {
         phone: phone.trim() || undefined
       });
 
-      saveAuthenticatedUser(response);
-      navigate(getDefaultRouteForRole(response.user.role));
+      navigate(getDefaultRouteForRole(user.role));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create your account right now.");
     } finally {

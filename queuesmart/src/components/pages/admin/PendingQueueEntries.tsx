@@ -41,9 +41,13 @@ export default function PendingQueueEntries() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let isCancelled = false;
+
     const loadData = async () => {
-      setIsLoading(true);
-      setErrorMessage(null);
+      if (!isCancelled) {
+        setIsLoading(true);
+        setErrorMessage(null);
+      }
 
       try {
         const [queueResponse, entryResponse] = await Promise.all([
@@ -62,19 +66,33 @@ export default function PendingQueueEntries() {
         const queueData = queueResponse.status === 204 ? [] : await queueResponse.json();
         const entryData = entryResponse.status === 204 ? [] : await entryResponse.json();
 
-        setQueues(queueData);
-        setEntries(entryData);
+        if (!isCancelled) {
+          setQueues(queueData);
+          setEntries(entryData);
+        }
       } catch (error) {
         console.error("Error loading pending queue entries:", error);
-        setErrorMessage("Unable to load pending queue entries right now.");
-        setQueues([]);
-        setEntries([]);
+        if (!isCancelled) {
+          setErrorMessage("Unable to load pending queue entries right now.");
+          setQueues([]);
+          setEntries([]);
+        }
       } finally {
-        setIsLoading(false);
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
     };
 
-    loadData();
+    void loadData();
+    const timer = window.setInterval(() => {
+      void loadData();
+    }, 10000);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(timer);
+    };
   }, []);
 
   const pendingEntries = useMemo(() => {

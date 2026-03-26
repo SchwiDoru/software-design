@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { clearAuthenticatedUser, getAuthenticatedUser, getDefaultRouteForRole } from "../services/auth";
+import { getDefaultRouteForRole } from "../services/auth";
+import { useAuth } from "./auth/AuthProvider";
 
 function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const navigate = useNavigate();
-  const authenticatedUser = getAuthenticatedUser();
+  const { user: authenticatedUser, logout } = useAuth();
   const dashboardPath = authenticatedUser ? getDefaultRouteForRole(authenticatedUser.role) : "/login";
   const primaryLabel = authenticatedUser
     ? authenticatedUser.role === "Patient"
@@ -13,8 +14,8 @@ function Navbar() {
       : "Admin Portal"
     : "Login";
 
-  const handleLogout = () => {
-    clearAuthenticatedUser();
+  const handleLogout = async () => {
+    await logout();
     setIsMenuOpen(false);
     navigate("/login");
   };

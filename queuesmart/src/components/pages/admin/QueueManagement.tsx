@@ -19,14 +19,14 @@ type PendingReorderMove = {
 
 const createQueueOrderSnapshots = (queueEntries: QueueEntry[]) => {
   return queueEntries.reduce<Record<number, QueueOrderSnapshot[]>>((snapshots, entry) => {
-    if (entry.status !== "Waiting") {
+    if (entry.status !== "Waiting" || entry.position === null) {
       return snapshots;
     }
 
     const existingSnapshots = snapshots[entry.queueId] ?? [];
     existingSnapshots.push({
       id: entry.id,
-      position: entry.position
+      position: entry.position ?? 0
     });
     snapshots[entry.queueId] = existingSnapshots.sort((left, right) => left.position - right.position);
 
@@ -44,11 +44,15 @@ export default function QueueManagement() {
   const [isSavingOrder, setIsSavingOrder] = useState(false);
 
   useEffect(() => {
+    let isCancelled = false;
+
     const fetchQueues = async () => {
       try {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/queue`);
         if (response.status === 204) {
-          setQueues([]);
+          if (!isCancelled) {
+            setQueues([]);
+          }
           return;
         }
 
@@ -57,22 +61,38 @@ export default function QueueManagement() {
         }
 
         const data = await response.json();
-        setQueues(data);
+        if (!isCancelled) {
+          setQueues(data);
+        }
       } catch (error) {
         console.error("Error fetching queues:", error);
-        setQueues([]);
+        if (!isCancelled) {
+          setQueues([]);
+        }
       }
     };
 
-    fetchQueues();
+    void fetchQueues();
+    const timer = window.setInterval(() => {
+      void fetchQueues();
+    }, 10000);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
+    let isCancelled = false;
+
     const fetchQueueEntries = async () => {
       try {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/queueentry`);
         if (response.status === 204) {
-          setEntries([]);
+          if (!isCancelled) {
+            setEntries([]);
+          }
           return;
         }
 
@@ -81,18 +101,30 @@ export default function QueueManagement() {
         }
 
         const data = await response.json();
-        setEntries(data);
-        setSavedQueueOrders(createQueueOrderSnapshots(data));
-        setPendingReorderMoves([]);
+        if (!isCancelled) {
+          setEntries(data);
+          setSavedQueueOrders(createQueueOrderSnapshots(data));
+          setPendingReorderMoves([]);
+        }
       } catch (error) {
         console.error("Error fetching queue entries:", error);
-        setEntries([]);
-        setSavedQueueOrders({});
-        setPendingReorderMoves([]);
+        if (!isCancelled) {
+          setEntries([]);
+          setSavedQueueOrders({});
+          setPendingReorderMoves([]);
+        }
       }
     };
 
-    fetchQueueEntries();
+    void fetchQueueEntries();
+    const timer = window.setInterval(() => {
+      void fetchQueueEntries();
+    }, 10000);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -122,7 +154,7 @@ export default function QueueManagement() {
   const currentQueueEntries = useMemo(() => {
     return entries
       .filter((entry) => entry.queueId === selectedQueueId && entry.status === "Waiting")
-      .sort((a, b) => a.position - b.position);
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   }, [entries, selectedQueueId]);
 
   const hasPendingReorder = useMemo(() => {
@@ -243,7 +275,7 @@ export default function QueueManagement() {
         ...previous,
         [selectedQueueId]: orderedEntries.map((entry) => ({
           id: entry.id,
-          position: entry.position
+          position: entry.position ?? 0
         }))
       }));
       setPendingReorderMoves((previous) => previous.filter((move) => move.queueId !== selectedQueueId));
@@ -284,7 +316,7 @@ export default function QueueManagement() {
       const otherQueues = filtered.filter((entry) => entry.queueId !== selectedQueueId);
       const thisQueue = filtered
         .filter((entry) => entry.queueId === selectedQueueId)
-        .sort((a, b) => a.position - b.position)
+        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
         .map((item, index) => ({ ...item, position: index }));
 
       return [...otherQueues, ...thisQueue];
@@ -319,7 +351,7 @@ export default function QueueManagement() {
       const otherQueues = filtered.filter((entry) => entry.queueId !== selectedQueueId);
       const thisQueue = filtered
         .filter((entry) => entry.queueId === selectedQueueId)
-        .sort((a, b) => a.position - b.position)
+        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
         .map((item, index) => ({ ...item, position: index }));
 
       return [...otherQueues, ...thisQueue];
@@ -346,7 +378,7 @@ export default function QueueManagement() {
     updateEntries((previous) => {
       const queueItems = previous
         .filter((entry) => entry.queueId === selectedQueueId && entry.status === "Waiting")
-        .sort((a, b) => a.position - b.position);
+        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
       const [movedItem] = queueItems.splice(sourceIndex, 1);
       queueItems.splice(destinationIndex, 0, movedItem);
 
@@ -479,7 +511,7 @@ export default function QueueManagement() {
                                   </div>
 
                                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-lg font-semibold text-accent">
-                                    {entry.position + 1}
+                                    {(entry.position ?? 0) + 1}
                                   </div>
 
                                   <div className="min-w-0 flex-1">

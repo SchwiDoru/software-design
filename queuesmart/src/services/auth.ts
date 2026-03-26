@@ -1,8 +1,6 @@
-import type { AuthResponse, UserRole } from "../types";
+import type { AuthResponse, User, UserRole } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
-
-export const AUTH_USER_STORAGE_KEY = "queuesmart.auth-user";
 
 export interface LoginRequest {
   email: string;
@@ -17,15 +15,7 @@ export interface RegisterRequest {
   phone?: string;
 }
 
-async function postAuthRequest(path: string, payload: LoginRequest | RegisterRequest): Promise<AuthResponse> {
-  const response = await fetch(`${API_URL}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
-
+async function handleAuthResponse(response: Response): Promise<AuthResponse> {
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
@@ -35,42 +25,62 @@ async function postAuthRequest(path: string, payload: LoginRequest | RegisterReq
   return data as AuthResponse;
 }
 
-export function loginUser(payload: LoginRequest) {
-  return postAuthRequest("/auth/login", payload);
+async function postAuthRequest(path: string, payload?: LoginRequest | RegisterRequest): Promise<AuthResponse> {
+  const response = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    credentials: "include",
+    body: payload ? JSON.stringify(payload) : undefined
+  });
+
+  return handleAuthResponse(response);
 }
 
-export function registerUser(payload: RegisterRequest) {
+export function loginPatient(payload: LoginRequest) {
+  return postAuthRequest("/auth/login/patient", payload);
+}
+
+export function loginStaff(payload: LoginRequest) {
+  return postAuthRequest("/auth/login/staff", payload);
+}
+
+export function registerPatient(payload: RegisterRequest) {
   return postAuthRequest("/auth/register", payload);
 }
 
-export function saveAuthenticatedUser(response: AuthResponse) {
-  window.localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(response.user));
+export async function getCurrentAuthenticatedUser(): Promise<User | null> {
+  const response = await fetch(`${API_URL}/auth/me`, {
+    credentials: "include"
+  });
+
+  if (response.status === 401) {
+    return null;
+  }
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(data?.error ?? `Request failed with status ${response.status}`);
+  }
+
+  return (data as AuthResponse).user;
 }
 
-export function getAuthenticatedUser() {
-  if (typeof window === "undefined") {
-    return null;
-  }
+export async function logoutUser(): Promise<void> {
+  const response = await fetch(`${API_URL}/auth/logout`, {
+    method: "POST",
+    credentials: "include"
+  });
 
-  const raw = window.localStorage.getItem(AUTH_USER_STORAGE_KEY);
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(raw) as AuthResponse["user"];
-  } catch {
-    window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
-    return null;
-  }
-}
-
-export function clearAuthenticatedUser() {
-  if (typeof window === "undefined") {
+  if (response.status === 401) {
     return;
   }
 
-  window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.error ?? `Request failed with status ${response.status}`);
+  }
 }
 
 export function hasRequiredRole(role: UserRole, allowedRoles: UserRole[]) {

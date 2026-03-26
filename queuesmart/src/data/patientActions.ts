@@ -11,16 +11,14 @@ export const adminOverride = (userId: string, action: 'TOP' | 'EMERGENCY' | 'CAN
   if (action === 'TOP') {
     nextEntries = entries.map(e => {
       if (e.queueId === target.queueId && e.userId !== userId && e.status === "Waiting") {
-        return { ...e, position: e.position + 1 };
+        return { ...e, position: (e.position ?? 0) + 1 };
       }
-      // Use 'as any' or your specific Status Type to bypass the string mismatch
-      if (e.userId === userId) return { ...e, position: 1, status: "Waiting" as any };
+      if (e.userId === userId) return { ...e, position: 1, status: "Waiting" };
       return e;
     });
   } else if (action === 'EMERGENCY') {
     nextEntries = entries.map(e => 
-      // Force the status string to match your type definition
-      e.userId === userId ? { ...e, status: "serving" as any, position: 0 } : e
+      e.userId === userId ? { ...e, status: "InProgress", position: 0 } : e
     );
   } else if (action === 'CANCEL') {
     nextEntries = entries.filter(e => e.userId !== userId);

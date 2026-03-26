@@ -4,7 +4,7 @@ import { MOCK_ENTRIES, MOCK_QUEUES } from "../../data/mockData";
 
 function Home() {
   const totalWaiting = MOCK_ENTRIES.filter((entry) => entry.status === "Waiting").length;
-  const activeServices = MOCK_QUEUES.filter((queue) => queue.status === "open");
+  const activeServices = MOCK_QUEUES.filter((queue) => queue.status === "Open");
 
   return (
     <div className="min-h-screen bg-background">
@@ -105,7 +105,7 @@ function Home() {
             {MOCK_QUEUES.map((queue) => (
               <article key={queue.id} className="surface-card surface-card-hover p-6">
                 <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1">
-                  <span className={`h-2 w-2 rounded-full ${queue.status === "open" ? "bg-emerald-500" : "bg-slate-400"}`} />
+                  <span className={`h-2 w-2 rounded-full ${queue.status === "Open" ? "bg-emerald-500" : "bg-slate-400"}`} />
                   <span className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">{queue.status}</span>
                 </div>
                 <h3 className="text-xl font-semibold text-foreground">{queue.service?.name}</h3>

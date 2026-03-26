@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import AdminLayout from "../../admin/AdminLayout";
-import { Search, Calendar, Filter, Phone, User, MoreHorizontal, Mail } from "lucide-react";
+import { Search, Calendar, Phone, User, Mail } from "lucide-react";
 import { Button } from "../../ui/Button";
 import { Link } from "react-router-dom";
 import { usePatientSearchStore } from "../../../data/patientSearchStore";

@@ -17,12 +17,16 @@ export default function AdminDashboard() {
   const [isApplyingQueueStatus, setIsApplyingQueueStatus] = useState(false);
 
   useEffect(() => {
+    let isCancelled = false;
+
     const fetchQueues = async () => {
       try {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/queue`);
 
         if (response.status === 204) {
-          setQueues([]);
+          if (!isCancelled) {
+            setQueues([]);
+          }
           return;
         }
 
@@ -31,17 +35,21 @@ export default function AdminDashboard() {
         }
         
         const data: Queue[] = await response.json();
-        setQueues(data);
-        setSavedQueueStatuses(
-          data.reduce<Record<number, QueueStatus>>((statuses, queue) => {
-            statuses[queue.id] = queue.status;
-            return statuses;
-          }, {})
-        );
+        if (!isCancelled) {
+          setQueues(data);
+          setSavedQueueStatuses(
+            data.reduce<Record<number, QueueStatus>>((statuses, queue) => {
+              statuses[queue.id] = queue.status;
+              return statuses;
+            }, {})
+          );
+        }
       } catch (error) {
         console.error("Error fetching queues:", error);
-        setQueues([]);
-        setSavedQueueStatuses({});
+        if (!isCancelled) {
+          setQueues([]);
+          setSavedQueueStatuses({});
+        }
       }
     };
     const fetchQueueEntries = async () => {
@@ -49,7 +57,9 @@ export default function AdminDashboard() {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/queueentry`);
 
         if (response.status === 204) {
-          setEntries([]);
+          if (!isCancelled) {
+            setEntries([]);
+          }
           return;
         }
 
@@ -58,15 +68,30 @@ export default function AdminDashboard() {
         }
         
         const data = await response.json();
-        setEntries(data);
+        if (!isCancelled) {
+          setEntries(data);
+        }
       } catch (error) {
         console.error("Error fetching queues:", error);
-        setEntries([]);
+        if (!isCancelled) {
+          setEntries([]);
+        }
       }
     };
-    
-    fetchQueues();
-    fetchQueueEntries();
+
+    const loadDashboard = async () => {
+      await Promise.all([fetchQueues(), fetchQueueEntries()]);
+    };
+
+    void loadDashboard();
+    const timer = window.setInterval(() => {
+      void loadDashboard();
+    }, 10000);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(timer);
+    };
   }, []);
 
   const getWaitingCount = (queueId: number) => {

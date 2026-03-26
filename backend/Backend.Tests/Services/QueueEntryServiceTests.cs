@@ -18,7 +18,7 @@ public class QueueEntryServiceTests: IDisposable
     {
  
         _testDbContext = TestDbContextFactory.CreateWithSeedData();
-        _service = new QueueEntryServices(_testDbContext);
+        _service = new QueueEntryServices(_testDbContext, new NotificationService(_testDbContext));
     }
     private static QueueEntry CreateValidQueueEntry(
         int queueId = 1,

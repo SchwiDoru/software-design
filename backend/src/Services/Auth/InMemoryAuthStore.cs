@@ -22,6 +22,18 @@ public class InMemoryAuthStore : IAuthStore
             email: "staff@queuesmart.local",
             passwordHash: "2f005e42a17da46ec51ba6f11d725e60788931a1dadd33d9cb85084fb32bb166",
             role: UserRole.Staff);
+
+        SeedUser(
+            name: "Demo Dummy",
+            email: "demo.dummy@queuesmart.local",
+            passwordHash: "b22f213ec710f0b0e86297d10279d69171f50f01a04edf40f472a563e7ad8576",
+            role: UserRole.Patient);
+
+        SeedUser(
+            name: "Demo Dummy 2",
+            email: "demo.dummy2@queuesmart.local",
+            passwordHash: "ffab304c2a86b45b1346b13ab988a9186896db99e71ba231cf0c7466294b03a9",
+            role: UserRole.Patient);
     }
 
     public Task<AuthUserRecord?> GetByEmail(string email)

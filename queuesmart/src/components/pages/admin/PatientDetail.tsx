@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
-import { ChevronLeft, AlertCircle, FastForward, XCircle, User, Phone, Mail, CheckCircle2 } from "lucide-react";
+import { useParams, Link } from "react-router-dom";
+import { ChevronLeft, AlertCircle, FastForward, XCircle, User, Mail, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AdminLayout from "../../admin/AdminLayout";
 import { Button } from "../../ui/Button";
@@ -27,17 +27,20 @@ const MOCK_HISTORY = [
 ];
 export default function PatientDetail() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [showSuccess, setShowSuccess] = useState(false);
   const [showPushSuccess, setShowPushSuccess] = useState(false);
   const [showCancelSuccess, setShowCancelSuccess] = useState(false);
 const [entries, setEntries] = useState([
   ...readQueueEntries(),
   { 
+    id: -1,
     userId: id, 
     status: "Waiting", 
     position: 3, 
-    user: { name: "Test Patient", email: "test@example.com" } 
+    queueId: 1,
+    joinTime: new Date().toISOString(),
+    priority: "Low",
+    user: { id: -1, name: "Test Patient", email: "test@example.com", role: "Patient" } 
   }
 ]);
 

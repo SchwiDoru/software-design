@@ -6,10 +6,10 @@ using Microsoft.EntityFrameworkCore;
 namespace Backend.Tests.Data;
 public static class TestDbContextFactory
 {
-    public static AppDbContext CreateWithSeedData()
+    public static AppDbContext CreateWithSeedData(string? databaseName = null)
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName ?? Guid.NewGuid().ToString())
             .Options;
         var context = new AppDbContext(options);
 
