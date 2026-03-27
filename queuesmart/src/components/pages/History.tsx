@@ -1,26 +1,69 @@
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import { ArrowRight, CheckCircle2, XCircle, ChevronLeft, ChevronRight } from "lucide-react";
-import Navbar from "../Navbar"; 
+import Navbar from "../Navbar";
 import { useUIStore } from "../../data/historyPageBack";
-
-// Define your data here so the component can find it
-const pastQueues = [
-  { id: "q-101", date: "Oct 24, 2025", service: "General Consultation", status: "Served", clinic: "City Health Hub" },
-  { id: "q-102", date: "Sep 12, 2025", service: "Blood Work", status: "Cancelled", clinic: "City Health Hub" },
-  { id: "q-103", date: "Aug 05, 2025", service: "Vaccination", status: "Served", clinic: "Westside Medical" },
-  { id: "q-104", date: "Jul 19, 2025", service: "Dermatology", status: "Served", clinic: "Skin & Care Clinic" },
-  { id: "q-105", date: "Jun 30, 2025", service: "Consultation", status: "Served", clinic: "City Health Hub" },
-  { id: "q-106", date: "May 14, 2025", service: "Physical Therapy", status: "Cancelled", clinic: "Rehab Center" },
-];
+import { useAuth } from "../auth/AuthProvider";
+import { getPatientHistory } from "../../services/history";
+import { getActiveQueueEntry } from "../../services/queueEntry";
+import type { HistoryRecord, QueueEntry } from "../../types";
 
 export default function HistoryPage() {
+  const { user: authenticatedUser } = useAuth();
   const { historyPage, setHistoryPage } = useUIStore();
+  const [histories, setHistories] = useState<HistoryRecord[]>([]);
+  const [activeVisit, setActiveVisit] = useState<QueueEntry | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const itemsPerPage = 4;
 
-  const totalPages = Math.ceil(pastQueues.length / itemsPerPage);
+  useEffect(() => {
+    if (!authenticatedUser) {
+      setHistories([]);
+      setActiveVisit(null);
+      setIsLoading(false);
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadHistory = async () => {
+      try {
+        const [nextHistory, nextActiveVisit] = await Promise.all([
+          getPatientHistory(authenticatedUser.email),
+          getActiveQueueEntry(authenticatedUser.email)
+        ]);
+        if (!isCancelled) {
+          setHistories(nextHistory);
+          setActiveVisit(nextActiveVisit);
+        }
+      } catch (error) {
+        console.warn("Failed to load patient history", error);
+        if (!isCancelled) {
+          setHistories([]);
+          setActiveVisit(null);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadHistory();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [authenticatedUser]);
+
+  const totalPages = Math.max(1, Math.ceil(histories.length / itemsPerPage));
   const startIndex = (historyPage - 1) * itemsPerPage;
-  const currentItems = pastQueues.slice(startIndex, startIndex + itemsPerPage);
+  const currentItems = useMemo(
+    () => histories.slice(startIndex, startIndex + itemsPerPage),
+    [histories, startIndex]
+  );
+  const hasHistory = currentItems.length > 0;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -34,43 +77,73 @@ export default function HistoryPage() {
           </div>
           <h1 className="text-5xl text-white">Your <span className="gradient-text">Queue History</span></h1>
           <p className="mt-4 text-white/60 max-w-xl text-lg">
-            Review your clinical outcomes and past visits.
+            Review your current visit status and completed checkouts.
           </p>
         </div>
       </header>
 
       <main className="flex-grow bg-white px-6 py-12">
         <div className="mx-auto max-w-6xl">
+          {activeVisit ? (
+            <div className="surface-card mb-6 border-accent/20 p-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Current Visit</p>
+                  <h2 className="mt-2 text-2xl text-foreground">
+                    {activeVisit.queue?.service?.name ?? "Clinic Visit"}
+                  </h2>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {activeVisit.status === "Pending"
+                      ? "Your request has been received and is waiting for staff review."
+                      : activeVisit.status === "Waiting"
+                        ? `You are currently #${(activeVisit.position ?? 0) + 1} in line.`
+                        : "Go to the front desk. Staff is preparing your visit with the doctor."}
+                  </p>
+                </div>
+                <span className="inline-flex rounded-full bg-accent/10 px-3 py-1 text-sm font-medium text-accent">
+                  {activeVisit.status === "InProgress" ? "Waiting for Doctor" : activeVisit.status}
+                </span>
+              </div>
+            </div>
+          ) : null}
+
           <div className="grid gap-4">
+            {isLoading ? (
+              <div className="surface-card p-8 text-sm text-muted-foreground">Loading patient history...</div>
+            ) : !hasHistory ? (
+              <div className="surface-card p-8 text-center text-muted-foreground">
+                No completed visits have been recorded yet. Once staff marks your doctor visit complete, it will appear here.
+              </div>
+            ) : (
             <AnimatePresence mode="wait">
               {currentItems.map((item) => (
                 <motion.div
-                  key={item.id}
+                  key={item.historyId}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 10 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <Link 
-                    to={`/history/${item.id}`}
+                  <Link
+                    to={`/history/${encodeURIComponent(item.historyId)}`}
                     className="surface-card group flex items-center justify-between p-6 hover:border-accent/40"
                   >
                     <div className="flex items-center gap-6">
                       <div className="hidden sm:block text-center min-w-[60px]">
                         <p className="font-mono text-[10px] uppercase tracking-tighter text-muted-foreground">
-                          {item.date.split(' ')[0]}
+                          {new Date(item.date).toLocaleString(undefined, { month: "short" })}
                         </p>
-                        <p className="text-2xl font-bold">{item.date.split(' ')[1].replace(',', '')}</p>
+                        <p className="text-2xl font-bold">{new Date(item.date).getDate()}</p>
                       </div>
                       <div className="h-10 w-[1px] bg-border hidden sm:block" />
                       <div>
-                        <h3 className="text-xl font-medium">{item.service}</h3>
+                        <h3 className="text-xl font-medium">{item.queueEntry?.queue?.service?.name ?? item.historyDetails[0]?.serviceType ?? "Clinic Visit"}</h3>
                         <div className="flex items-center gap-3 mt-1 text-xs">
-                          <span className={item.status === 'Served' ? 'text-emerald-600 flex items-center gap-1' : 'text-rose-500 flex items-center gap-1'}>
-                            {item.status === 'Served' ? <CheckCircle2 size={14} /> : <XCircle size={14} />}
-                            {item.status}
+                          <span className={item.queueEntry?.status === "Cancelled" ? 'text-rose-500 flex items-center gap-1' : 'text-emerald-600 flex items-center gap-1'}>
+                            {item.queueEntry?.status === "Cancelled" ? <XCircle size={14} /> : <CheckCircle2 size={14} />}
+                            {item.queueEntry?.status === "Cancelled" ? "Cancelled" : "Completed"}
                           </span>
-                          <span className="text-muted-foreground">• {item.clinic}</span>
+                          <span className="text-muted-foreground">QueueSmart Clinic</span>
                         </div>
                       </div>
                     </div>
@@ -81,13 +154,14 @@ export default function HistoryPage() {
                 </motion.div>
               ))}
             </AnimatePresence>
+            )}
           </div>
 
           {/* Corrected Pagination Controls inside return */}
           <footer className="mt-12 flex items-center justify-center gap-6">
             <button 
               onClick={() => setHistoryPage(Math.max(historyPage - 1, 1))}
-              disabled={historyPage === 1}
+              disabled={historyPage === 1 || histories.length === 0}
               className="p-2 rounded-full border border-border hover:bg-muted disabled:opacity-30 transition-all cursor-pointer"
             >
               <ChevronLeft size={20} />
@@ -111,7 +185,7 @@ export default function HistoryPage() {
 
             <button 
               onClick={() => setHistoryPage(Math.min(historyPage + 1, totalPages))}
-              disabled={historyPage === totalPages}
+              disabled={historyPage === totalPages || histories.length === 0}
               className="p-2 rounded-full border border-border hover:bg-muted disabled:opacity-30 transition-all cursor-pointer"
             >
               <ChevronRight size={20} />

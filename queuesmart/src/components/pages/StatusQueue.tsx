@@ -128,21 +128,37 @@ function StatusQueue() {
                 {serviceName} Department
             </div>
             <h1 className="text-4xl font-black mb-1">
-              {isLoading ? "--" : activeEntry?.status === "Pending" ? "Pending" : `#${position}`}
+              {isLoading
+                ? "--"
+                : activeEntry?.status === "Pending"
+                  ? "Pending"
+                  : activeEntry?.status === "InProgress"
+                    ? "Front Desk"
+                    : `#${position}`}
             </h1>
             <p className="text-slate-400 text-sm mb-8 uppercase font-bold tracking-widest">
-              {activeEntry?.status === "Pending" ? "Awaiting Staff Review" : "Your Position"}
+              {activeEntry?.status === "Pending"
+                ? "Awaiting Staff Review"
+                : activeEntry?.status === "InProgress"
+                  ? "Proceed Now"
+                  : "Your Position"}
             </p>
 
             <div className="bg-blue-50 rounded-2xl p-6 border border-blue-100 mb-8">
                 <p className="text-xs font-bold text-blue-400 uppercase mb-2">Estimated Arrival</p>
                 <p className="text-3xl font-black text-blue-900">
-                  {activeEntry?.status === "Pending" ? "Waiting for review" : `${countdown} Minutes`}
+                  {activeEntry?.status === "Pending"
+                    ? "Waiting for review"
+                    : activeEntry?.status === "InProgress"
+                      ? "Please proceed"
+                      : `${countdown} Minutes`}
                 </p>
                 <p className="mt-3 text-sm text-slate-500">
-                  {activeEntry
-                    ? `Current status: ${activeEntry.status}`
-                    : "You do not have an active queue entry right now."}
+                  {activeEntry?.status === "InProgress"
+                    ? "Go to the front desk. Staff is preparing your visit with the doctor."
+                    : activeEntry
+                      ? `Current status: ${activeEntry.status}`
+                      : "You do not have an active queue entry right now."}
                 </p>
             </div>
 

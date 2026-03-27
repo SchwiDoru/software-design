@@ -6,6 +6,7 @@ import Dashboard from "./components/pages/Dashboard"
 import AdminDashboard from "./components/pages/admin/AdminDashboard"
 import PendingQueueEntries from "./components/pages/admin/PendingQueueEntries"
 import QueueManagement from "./components/pages/admin/QueueManagement"
+import DoctorQueue from "./components/pages/admin/DoctorQueue"
 import History from "./components/pages/History"
 import HistoryDetail from "./components/pages/HistoryDetail"
 import PatientDirectory from "./components/pages/admin/PatientDirectory"
@@ -31,6 +32,8 @@ function App() {
         <Route path="/join" element={<JoinQueue />} />
         <Route path="/status" element={<StatusQueue/>}/>
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/history" element={<History />} />
+        <Route path="/history/:id" element={<HistoryDetail />} />
       </Route>
       
       {/* Auth Routes */}
@@ -49,14 +52,12 @@ function App() {
       <Route element={<ProtectedRoute allowedRoles={["Admin", "Staff"]} />}>
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/queue" element={<QueueManagement />} />
+        <Route path="/admin/doctor-queue" element={<DoctorQueue />} />
         <Route path="/admin/pending" element={<PendingQueueEntries />} />
         <Route path="/admin/patients" element={<PatientDirectory />} />
         <Route path="/admin/patients/:id" element={<PatientDetail />} />
       </Route>
       
-      {/* History Routes */}
-      <Route path="/history" element={<History />} />
-      <Route path="/history/:id" element={<HistoryDetail />} />
     </Routes>
   )
 }

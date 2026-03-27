@@ -178,4 +178,84 @@ public class NotificationService : INotificationService
 
         await _dbContext.SaveChangesAsync();
     }
+
+    public async Task CreatePatientFrontDeskNotification(int queueEntryId)
+    {
+        var queueEntry = await _dbContext.QueueEntries
+            .Include(entry => entry.User)
+            .Include(entry => entry.Queue!)
+                .ThenInclude(queue => queue.Service)
+            .FirstOrDefaultAsync(entry => entry.Id == queueEntryId);
+
+        if (queueEntry == null)
+        {
+            return;
+        }
+
+        var notificationAlreadyExists = await _dbContext.NotificationEvents.AnyAsync(notification =>
+            notification.Type == NotificationType.FrontDesk &&
+            notification.Audience == NotificationAudience.Patient &&
+            notification.QueueEntryId == queueEntry.Id);
+
+        if (notificationAlreadyExists)
+        {
+            return;
+        }
+
+        var serviceName = queueEntry.Queue?.Service?.Name ?? "your visit";
+
+        _dbContext.NotificationEvents.Add(new NotificationEvent
+        {
+            Type = NotificationType.FrontDesk,
+            Audience = NotificationAudience.Patient,
+            Title = "Go to the front desk",
+            Message = $"Please go to the front desk for {serviceName}. Staff is preparing you for the doctor.",
+            CreatedAt = DateTime.UtcNow,
+            UserId = queueEntry.UserId,
+            QueueId = queueEntry.QueueId,
+            QueueEntryId = queueEntry.Id
+        });
+
+        await _dbContext.SaveChangesAsync();
+    }
+
+    public async Task CreatePatientVisitCompletedNotification(int queueEntryId)
+    {
+        var queueEntry = await _dbContext.QueueEntries
+            .Include(entry => entry.User)
+            .Include(entry => entry.Queue!)
+                .ThenInclude(queue => queue.Service)
+            .FirstOrDefaultAsync(entry => entry.Id == queueEntryId);
+
+        if (queueEntry == null)
+        {
+            return;
+        }
+
+        var notificationAlreadyExists = await _dbContext.NotificationEvents.AnyAsync(notification =>
+            notification.Type == NotificationType.VisitCompleted &&
+            notification.Audience == NotificationAudience.Patient &&
+            notification.QueueEntryId == queueEntry.Id);
+
+        if (notificationAlreadyExists)
+        {
+            return;
+        }
+
+        var serviceName = queueEntry.Queue?.Service?.Name ?? "your visit";
+
+        _dbContext.NotificationEvents.Add(new NotificationEvent
+        {
+            Type = NotificationType.VisitCompleted,
+            Audience = NotificationAudience.Patient,
+            Title = "Visit completed",
+            Message = $"Your {serviceName} visit has been completed and saved to your history.",
+            CreatedAt = DateTime.UtcNow,
+            UserId = queueEntry.UserId,
+            QueueId = queueEntry.QueueId,
+            QueueEntryId = queueEntry.Id
+        });
+
+        await _dbContext.SaveChangesAsync();
+    }
 }
