@@ -23,6 +23,7 @@ builder.Services.AddScoped<IServiceManager, ServiceManager>();
 builder.Services.AddScoped<IQueueService, QueueService>();
 builder.Services.AddScoped<IQueueEntryServices, QueueEntryServices>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IHistoryService, HistoryService>();
 builder.Services.AddSingleton<IAuthStore, InMemoryAuthStore>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -64,6 +65,7 @@ builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
 var app = builder.Build();
 
@@ -78,7 +80,7 @@ using (var scope = app.Services.CreateScope())
         {
             Email = "demo.dummy@queuesmart.local",
             Name = "Demo Dummy",
-            PhoneNumber = null
+            PhoneNumber = "469-555-0101"
         });
         Console.WriteLine("Default user created: demo.dummy@queuesmart.local");
     }
@@ -89,7 +91,7 @@ using (var scope = app.Services.CreateScope())
         {
             Email = "demo.dummy2@queuesmart.local",
             Name = "Demo Dummy 2",
-            PhoneNumber = null
+            PhoneNumber = "469-555-0102"
         });
         Console.WriteLine("Default user created: demo.dummy2@queuesmart.local");
     }
@@ -119,6 +121,124 @@ using (var scope = app.Services.CreateScope())
             ServiceId = generalConsultation.Id
         });
         Console.WriteLine("Default queue created: General Consultation");
+    }
+
+    dbContext.SaveChanges();
+
+    var defaultQueue = dbContext.Queues
+        .Include(queue => queue.Service)
+        .First(queue => queue.ServiceId == generalConsultation.Id);
+
+    if (!dbContext.QueueEntries.Any(entry => entry.UserId == "demo.dummy@queuesmart.local" && entry.Status == QueueEntryStatus.Completed))
+    {
+        var completedEntry = new QueueEntry
+        {
+            QueueId = defaultQueue.Id,
+            UserId = "demo.dummy@queuesmart.local",
+            JoinTime = DateTime.UtcNow.AddDays(-14),
+            Status = QueueEntryStatus.Completed,
+            Priority = PriorityLevel.Medium,
+            Position = null,
+            Description = "General Consultation"
+        };
+
+        dbContext.QueueEntries.Add(completedEntry);
+        dbContext.SaveChanges();
+
+        if (!dbContext.Histories.Any(history => history.QueueEntryId == completedEntry.Id))
+        {
+            dbContext.Histories.Add(new History
+            {
+                HistoryId = "QS-DEMO-001",
+                Date = DateTime.UtcNow.AddDays(-14),
+                QueueEntryId = completedEntry.Id,
+                HistoryDetails =
+                [
+                    new HistoryDetail
+                    {
+                        HistoryId = "QS-DEMO-001",
+                        Diagnosis = "Seasonal allergies",
+                        ServiceType = "Consultation",
+                        Assessment = "Patient reported sinus pressure and sneezing. Symptoms were mild and stable.",
+                        Label = "Primary Visit"
+                    }
+                ],
+                Prescriptions =
+                [
+                    new Prescription
+                    {
+                        HistoryId = "QS-DEMO-001",
+                        PrescriptionName = "Cetirizine 10mg",
+                        Amt = 14,
+                        DailyUsage = "1 tablet daily"
+                    }
+                ]
+            });
+        }
+    }
+
+    if (!dbContext.QueueEntries.Any(entry => entry.UserId == "demo.dummy2@queuesmart.local" && entry.Status == QueueEntryStatus.Completed))
+    {
+        var secondCompletedEntry = new QueueEntry
+        {
+            QueueId = defaultQueue.Id,
+            UserId = "demo.dummy2@queuesmart.local",
+            JoinTime = DateTime.UtcNow.AddDays(-7),
+            Status = QueueEntryStatus.Completed,
+            Priority = PriorityLevel.Low,
+            Position = null,
+            Description = "General Consultation"
+        };
+
+        dbContext.QueueEntries.Add(secondCompletedEntry);
+        dbContext.SaveChanges();
+
+        if (!dbContext.Histories.Any(history => history.QueueEntryId == secondCompletedEntry.Id))
+        {
+            dbContext.Histories.Add(new History
+            {
+                HistoryId = "QS-DEMO-002",
+                Date = DateTime.UtcNow.AddDays(-7),
+                QueueEntryId = secondCompletedEntry.Id,
+                HistoryDetails =
+                [
+                    new HistoryDetail
+                    {
+                        HistoryId = "QS-DEMO-002",
+                        Diagnosis = "Routine follow-up",
+                        ServiceType = "Consultation",
+                        Assessment = "Routine checkup completed with stable vitals and no urgent concerns.",
+                        Label = "Follow Up"
+                    }
+                ],
+                Prescriptions = []
+            });
+        }
+    }
+
+    if (!dbContext.NotificationEvents.Any(notification => notification.UserId == "demo.dummy@queuesmart.local"))
+    {
+        dbContext.NotificationEvents.AddRange(
+            new NotificationEvent
+            {
+                Type = NotificationType.QueueApproved,
+                Audience = NotificationAudience.Patient,
+                Title = "Queue request approved",
+                Message = "Your request for General Consultation was approved.",
+                CreatedAt = DateTime.UtcNow.AddHours(-4),
+                UserId = "demo.dummy@queuesmart.local",
+                QueueId = defaultQueue.Id
+            },
+            new NotificationEvent
+            {
+                Type = NotificationType.FirstInLine,
+                Audience = NotificationAudience.Patient,
+                Title = "You are first in line",
+                Message = "Please get ready. You are first in line for General Consultation.",
+                CreatedAt = DateTime.UtcNow.AddHours(-3),
+                UserId = "demo.dummy@queuesmart.local",
+                QueueId = defaultQueue.Id
+            });
     }
 
     dbContext.SaveChanges();

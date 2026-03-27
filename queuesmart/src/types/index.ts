@@ -53,7 +53,7 @@ export interface QueueEntry {
 
 export interface NotificationEvent {
     id: number;
-    type: "QueueJoined" | "FirstInLine" | "QueueApproved";
+    type: "QueueJoined" | "FirstInLine" | "QueueApproved" | "FrontDesk" | "VisitCompleted";
     audience: "AdminStaff" | "Patient";
     title: string;
     message: string;
@@ -61,6 +61,50 @@ export interface NotificationEvent {
     userId?: string;
     queueId?: number;
     queueEntryId?: number;
+}
+
+export interface HistoryDetail {
+    id: number;
+    historyId: string;
+    diagnosis: string;
+    serviceType: string;
+    assessment: string;
+    label: string;
+}
+
+export interface Prescription {
+    id: number;
+    historyId: string;
+    prescriptionName: string;
+    amt: number;
+    dailyUsage: string;
+}
+
+export interface HistoryRecord {
+    historyId: string;
+    date: string;
+    queueEntryId: number;
+    queueEntry: QueueEntry;
+    historyDetails: HistoryDetail[];
+    prescriptions: Prescription[];
+    clinic?: string;
+}
+
+export interface PatientSummary {
+    email: string;
+    name: string;
+    phoneNumber?: string;
+    currentStatus?: string;
+    lastVisitDate?: string;
+    lastService?: string;
+}
+
+export interface PatientProfile {
+    email: string;
+    name: string;
+    phoneNumber?: string;
+    currentEntry?: QueueEntry | null;
+    histories: HistoryRecord[];
 }
 
 // Admin Dashboard specific types

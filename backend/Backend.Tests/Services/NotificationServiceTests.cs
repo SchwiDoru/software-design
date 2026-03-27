@@ -91,6 +91,35 @@ public class NotificationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task CreatePatientFrontDeskNotification_DoesNotDuplicateNotification()
+    {
+        var queueEntry = await AddQueueEntry(status: QueueEntryStatus.InProgress);
+
+        await _service.CreatePatientFrontDeskNotification(queueEntry.Id);
+        await _service.CreatePatientFrontDeskNotification(queueEntry.Id);
+
+        var notifications = await _testDbContext.NotificationEvents
+            .Where(notification => notification.Type == NotificationType.FrontDesk)
+            .ToListAsync();
+
+        Assert.Single(notifications);
+        Assert.Equal(queueEntry.UserId, notifications[0].UserId);
+    }
+
+    [Fact]
+    public async Task CreatePatientVisitCompletedNotification_CreatesPatientNotification()
+    {
+        var queueEntry = await AddQueueEntry(status: QueueEntryStatus.Completed);
+
+        await _service.CreatePatientVisitCompletedNotification(queueEntry.Id);
+
+        var notification = await _testDbContext.NotificationEvents.SingleAsync();
+        Assert.Equal(NotificationType.VisitCompleted, notification.Type);
+        Assert.Equal(NotificationAudience.Patient, notification.Audience);
+        Assert.Equal(queueEntry.Id, notification.QueueEntryId);
+    }
+
+    [Fact]
     public async Task GetNotifications_ForPatientWithoutUserId_ReturnsEmptyList()
     {
         var result = await _service.GetNotifications(UserRole.Patient, null, null);

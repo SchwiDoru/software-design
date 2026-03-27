@@ -9,12 +9,16 @@ const notificationStyles: Record<NotificationEvent["type"], string> = {
   QueueJoined: "border-blue-200 bg-white",
   FirstInLine: "border-amber-200 bg-amber-50",
   QueueApproved: "border-emerald-200 bg-emerald-50",
+  FrontDesk: "border-cyan-200 bg-cyan-50",
+  VisitCompleted: "border-violet-200 bg-violet-50",
 };
 
 const labelStyles: Record<NotificationEvent["type"], string> = {
   QueueJoined: "text-blue-600",
   FirstInLine: "text-amber-700",
   QueueApproved: "text-emerald-700",
+  FrontDesk: "text-cyan-700",
+  VisitCompleted: "text-violet-700",
 };
 
 export default function NotificationToastStack({ notifications, onDismiss }: NotificationToastStackProps) {
@@ -36,7 +40,9 @@ export default function NotificationToastStack({ notifications, onDismiss }: Not
                   ? "Queue Update"
                   : notification.type === "QueueApproved"
                     ? "Review Update"
-                    : "Patient Alert"}
+                    : notification.type === "VisitCompleted"
+                      ? "Visit History"
+                      : "Patient Alert"}
               </p>
               <h3 className="mt-1 text-lg font-semibold text-slate-900">{notification.title}</h3>
             </div>
