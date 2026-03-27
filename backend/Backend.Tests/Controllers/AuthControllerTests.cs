@@ -92,6 +92,43 @@ public class AuthControllerTests
     }
 
     [Fact]
+    public async Task Register_WhenArgumentNullException_ReturnsBadRequest()
+    {
+        var request = new RegisterRequestDTO();
+        _authServiceMock.Setup(service => service.Register(request))
+            .ThrowsAsync(new ArgumentNullException("request"));
+
+        var result = await _controller.Register(request);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Register_WhenArgumentException_ReturnsBadRequest()
+    {
+        var request = new RegisterRequestDTO();
+        _authServiceMock.Setup(service => service.Register(request))
+            .ThrowsAsync(new ArgumentException("invalid"));
+
+        var result = await _controller.Register(request);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task Register_WhenUnexpectedException_ReturnsInternalServerError()
+    {
+        var request = new RegisterRequestDTO();
+        _authServiceMock.Setup(service => service.Register(request))
+            .ThrowsAsync(new Exception("boom"));
+
+        var result = await _controller.Register(request);
+
+        var objectResult = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(StatusCodes.Status500InternalServerError, objectResult.StatusCode);
+    }
+
+    [Fact]
     public async Task LoginPatient_WithPatientAccount_ReturnsOk()
     {
         var request = new LoginRequestDTO { Email = "patient@example.com", Password = "Password123!" };
@@ -102,6 +139,55 @@ public class AuthControllerTests
 
         var okResult = Assert.IsType<OkObjectResult>(result.Result);
         Assert.Equal(response, okResult.Value);
+    }
+
+    [Fact]
+    public async Task LoginPatient_WhenUnauthorized_ReturnsUnauthorized()
+    {
+        var request = new LoginRequestDTO { Email = "patient@example.com", Password = "wrong" };
+        _authServiceMock.Setup(service => service.Login(request))
+            .ThrowsAsync(new UnauthorizedAccessException("Invalid email or password."));
+
+        var result = await _controller.LoginPatient(request);
+
+        Assert.IsType<UnauthorizedObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task LoginPatient_WhenArgumentNullException_ReturnsBadRequest()
+    {
+        var request = new LoginRequestDTO();
+        _authServiceMock.Setup(service => service.Login(request))
+            .ThrowsAsync(new ArgumentNullException("request"));
+
+        var result = await _controller.LoginPatient(request);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task LoginPatient_WhenArgumentException_ReturnsBadRequest()
+    {
+        var request = new LoginRequestDTO();
+        _authServiceMock.Setup(service => service.Login(request))
+            .ThrowsAsync(new ArgumentException("invalid"));
+
+        var result = await _controller.LoginPatient(request);
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task LoginPatient_WhenUnexpectedException_ReturnsInternalServerError()
+    {
+        var request = new LoginRequestDTO { Email = "patient@example.com", Password = "Password123!" };
+        _authServiceMock.Setup(service => service.Login(request))
+            .ThrowsAsync(new Exception("boom"));
+
+        var result = await _controller.LoginPatient(request);
+
+        var objectResult = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(StatusCodes.Status500InternalServerError, objectResult.StatusCode);
     }
 
     [Fact]
@@ -150,6 +236,18 @@ public class AuthControllerTests
     }
 
     [Fact]
+    public async Task LoginStaff_WhenUnauthorized_ReturnsUnauthorized()
+    {
+        var request = new LoginRequestDTO { Email = "staff@example.com", Password = "wrong" };
+        _authServiceMock.Setup(service => service.Login(request))
+            .ThrowsAsync(new UnauthorizedAccessException("Invalid email or password."));
+
+        var result = await _controller.LoginStaff(request);
+
+        Assert.IsType<UnauthorizedObjectResult>(result.Result);
+    }
+
+    [Fact]
     public async Task Me_WhenUserHasNoEmailClaim_ReturnsUnauthorized()
     {
         _controller.ControllerContext = new ControllerContext
@@ -181,6 +279,30 @@ public class AuthControllerTests
 
         var okResult = Assert.IsType<OkObjectResult>(result.Result);
         Assert.IsType<AuthResponseDTO>(okResult.Value);
+    }
+
+    [Fact]
+    public async Task Me_WhenSessionUserMissing_ReturnsUnauthorizedAndSignsOut()
+    {
+        var user = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.Email, "missing@example.com")],
+            "mock"));
+
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = CreateHttpContext(user)
+        };
+
+        _authServiceMock.Setup(service => service.GetUserByEmail("missing@example.com"))
+            .ReturnsAsync((AuthUserDTO?)null);
+
+        var result = await _controller.Me();
+
+        Assert.IsType<UnauthorizedObjectResult>(result.Result);
+        _authenticationServiceMock.Verify(service => service.SignOutAsync(
+            It.IsAny<HttpContext>(),
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            It.IsAny<AuthenticationProperties>()), Times.Once);
     }
 
     [Fact]
