@@ -19,6 +19,42 @@ public class NotificationsControllerTests
     }
 
     [Fact]
+    public async Task GetNotifications_WhenNoneFound_ReturnsNoContent()
+    {
+        _notificationServiceMock
+            .Setup(service => service.GetNotifications(UserRole.Patient, "test@example.com", null))
+            .ReturnsAsync([]);
+
+        var result = await _controller.GetNotifications(UserRole.Patient, "test@example.com", null);
+
+        Assert.IsType<NoContentResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetNotifications_WhenFound_ReturnsOk()
+    {
+        var notifications = new List<NotificationDTO>
+        {
+            new NotificationDTO
+            {
+                Id = 1,
+                Type = NotificationType.QueueApproved,
+                Audience = NotificationAudience.Patient,
+                Title = "Approved",
+                Message = "Approved message",
+                CreatedAt = DateTime.UtcNow
+            }
+        };
+
+        _notificationServiceMock
+            .Setup(service => service.GetNotifications(UserRole.Patient, "test@example.com", null))
+            .ReturnsAsync(notifications);
+
+        var result = await _controller.GetNotifications(UserRole.Patient, "test@example.com", null);
+
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(notifications, okResult.Value);
+    }
     public async Task GetNotifications_WhenNotificationsExist_ReturnsOk()
     {
         _notificationServiceMock

@@ -40,8 +40,9 @@
   <Target Name="GenerateHtmlCoverageReport"
           AfterTargets="VSTest"
           Condition="'$(CollectCoverage)' == 'true' and Exists('$(MSBuildProjectDirectory)\TestResults\Coverage\coverage.cobertura.xml')">
-    <Exec Command="reportgenerator -reports:&quot;$(MSBuildProjectDirectory)\TestResults\Coverage\coverage.cobertura.xml&quot; -targetdir:&quot;$(MSBuildProjectDirectory)\TestResults\CoverageReport&quot; -reporttypes:&quot;Html;HtmlSummary&quot;" />
-    <Message Text="HTML coverage report generated at $(MSBuildProjectDirectory)\TestResults\CoverageReport\index.html" Importance="high" />
+    <Exec Command="reportgenerator -reports:&quot;$(MSBuildProjectDirectory)\TestResults\Coverage\coverage.cobertura.xml&quot; -targetdir:&quot;$(MSBuildProjectDirectory)\TestResults\CoverageReport&quot; -reporttypes:&quot;Html;HtmlSummary&quot;"
+          IgnoreExitCode="true" />
+    <Message Text="Coverage XML was generated. If reportgenerator is installed, HTML coverage is written to $(MSBuildProjectDirectory)\TestResults\CoverageReport\index.html." Importance="high" />
   </Target>
 
 </Project>
