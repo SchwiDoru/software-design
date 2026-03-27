@@ -54,6 +54,7 @@ public class NotificationsControllerTests
 
         var okResult = Assert.IsType<OkObjectResult>(result.Result);
         Assert.Equal(notifications, okResult.Value);
+    }
     public async Task GetNotifications_WhenNotificationsExist_ReturnsOk()
     {
         _notificationServiceMock
