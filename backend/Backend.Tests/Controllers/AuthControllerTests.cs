@@ -121,6 +121,19 @@ public class AuthControllerTests
     }
 
     [Fact]
+    public async Task LoginStaff_WithStaffAccount_ReturnsOk()
+    {
+        var request = new LoginRequestDTO { Email = "staff@example.com", Password = "Password123!" };
+        var response = CreateAuthResponse(UserRole.Staff);
+        _authServiceMock.Setup(service => service.Login(request)).ReturnsAsync(response);
+
+        var result = await _controller.LoginStaff(request);
+
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(response, okResult.Value);
+    }
+
+    [Fact]
     public async Task Me_WhenUserHasNoEmailClaim_ReturnsUnauthorized()
     {
         _controller.ControllerContext = new ControllerContext
