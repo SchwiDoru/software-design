@@ -134,6 +134,22 @@ public class AuthControllerTests
     }
 
     [Fact]
+    public async Task LoginStaff_WithPatientAccount_ReturnsForbidden()
+    {
+        var request = new LoginRequestDTO { Email = "patient@example.com", Password = "Password123!" };
+        _authServiceMock.Setup(service => service.Login(request)).ReturnsAsync(CreateAuthResponse(UserRole.Patient));
+
+        var result = await _controller.LoginStaff(request);
+
+        var objectResult = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(StatusCodes.Status403Forbidden, objectResult.StatusCode);
+        _authenticationServiceMock.Verify(service => service.SignOutAsync(
+            It.IsAny<HttpContext>(),
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            It.IsAny<AuthenticationProperties>()), Times.Once);
+    }
+
+    [Fact]
     public async Task Me_WhenUserHasNoEmailClaim_ReturnsUnauthorized()
     {
         _controller.ControllerContext = new ControllerContext
