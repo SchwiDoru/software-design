@@ -24,6 +24,12 @@ public class InMemoryAuthStore : IAuthStore
             role: UserRole.Staff);
 
         SeedUser(
+            name: "Darren",
+            email: "darrenfr83@gmail.com",
+            passwordHash: "2f005e42a17da46ec51ba6f11d725e60788931a1dadd33d9cb85084fb32bb166",
+            role: UserRole.Admin);
+
+        SeedUser(
             name: "Demo Dummy",
             email: "demo.dummy@queuesmart.local",
             passwordHash: "b22f213ec710f0b0e86297d10279d69171f50f01a04edf40f472a563e7ad8576",
