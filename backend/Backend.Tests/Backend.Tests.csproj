@@ -1,0 +1,47 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="coverlet.msbuild" Version="8.0.1">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <CollectCoverage>true</CollectCoverage>
+    <CoverletOutput>./TestResults/Coverage/</CoverletOutput>
+    <CoverletOutputFormat>json,cobertura</CoverletOutputFormat>
+    <Include>[backend]*</Include>
+    <Exclude>[Backend.Tests*]*,[xunit*]*,[Moq*]*</Exclude>
+    <ExcludeByFile>**/obj/**,**/*.g.cs,**/*.generated.cs,**/*OpenApiXmlCommentSupport.generated.cs</ExcludeByFile>
+    <IncludeTestAssembly>false</IncludeTestAssembly>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\backend.csproj" />
+  </ItemGroup>
+
+  <Target Name="GenerateHtmlCoverageReport"
+          AfterTargets="VSTest"
+          Condition="'$(CollectCoverage)' == 'true' and Exists('$(MSBuildProjectDirectory)\TestResults\Coverage\coverage.cobertura.xml')">
+    <Exec Command="reportgenerator -reports:&quot;$(MSBuildProjectDirectory)\TestResults\Coverage\coverage.cobertura.xml&quot; -targetdir:&quot;$(MSBuildProjectDirectory)\TestResults\CoverageReport&quot; -reporttypes:&quot;Html;HtmlSummary&quot;" />
+    <Message Text="HTML coverage report generated at $(MSBuildProjectDirectory)\TestResults\CoverageReport\index.html" Importance="high" />
+  </Target>
+
+</Project>

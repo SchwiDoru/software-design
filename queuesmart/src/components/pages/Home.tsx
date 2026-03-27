@@ -3,8 +3,8 @@ import { Link } from "react-router-dom";
 import { MOCK_ENTRIES, MOCK_QUEUES } from "../../data/mockData";
 
 function Home() {
-  const totalWaiting = MOCK_ENTRIES.filter((entry) => entry.status === "waiting").length;
-  const activeServices = MOCK_QUEUES.filter((queue) => queue.status === "open");
+  const totalWaiting = MOCK_ENTRIES.filter((entry) => entry.status === "Waiting").length;
+  const activeServices = MOCK_QUEUES.filter((queue) => queue.status === "Open");
 
   return (
     <div className="min-h-screen bg-background">
@@ -105,14 +105,14 @@ function Home() {
             {MOCK_QUEUES.map((queue) => (
               <article key={queue.id} className="surface-card surface-card-hover p-6">
                 <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1">
-                  <span className={`h-2 w-2 rounded-full ${queue.status === "open" ? "bg-emerald-500" : "bg-slate-400"}`} />
+                  <span className={`h-2 w-2 rounded-full ${queue.status === "Open" ? "bg-emerald-500" : "bg-slate-400"}`} />
                   <span className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">{queue.status}</span>
                 </div>
                 <h3 className="text-xl font-semibold text-foreground">{queue.service?.name}</h3>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{queue.service?.description}</p>
                 <div className="mt-4 flex items-center justify-between text-sm">
                   <span className="rounded-full bg-accent/10 px-3 py-1 text-accent">{queue.service?.priority} Priority</span>
-                  <span className="text-muted-foreground">{queue.service?.durationMinutes} min</span>
+                  <span className="text-muted-foreground">{queue.service?.duration} min</span>
                 </div>
               </article>
             ))}

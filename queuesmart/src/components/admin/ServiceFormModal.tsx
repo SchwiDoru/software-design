@@ -18,7 +18,7 @@ export const ServiceFormModal: React.FC<ServiceFormModalProps> = ({
   const [formData, setFormData] = useState<Partial<Service>>({
     name: "",
     description: "",
-    durationMinutes: 15,
+    duration: 15,
     priority: "Medium"
   });
 
@@ -28,7 +28,7 @@ export const ServiceFormModal: React.FC<ServiceFormModalProps> = ({
         initialData || {
           name: "",
           description: "",
-          durationMinutes: 15,
+          duration: 15,
           priority: "Medium"
         }
       );
@@ -43,7 +43,7 @@ export const ServiceFormModal: React.FC<ServiceFormModalProps> = ({
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: name === "durationMinutes" ? Number.parseInt(value, 10) : value
+      [name]: name === "duration" ? Number.parseInt(value, 10) : value
     }));
   };
 
@@ -106,8 +106,8 @@ export const ServiceFormModal: React.FC<ServiceFormModalProps> = ({
               </label>
               <input
                 type="number"
-                name="durationMinutes"
-                value={formData.durationMinutes}
+                name="duration"
+                value={formData.duration}
                 onChange={handleChange}
                 min={1}
                 required

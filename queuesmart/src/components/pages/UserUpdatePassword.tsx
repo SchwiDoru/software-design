@@ -1,6 +1,6 @@
 import Navbar from "../Navbar"
 import { useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import { Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 

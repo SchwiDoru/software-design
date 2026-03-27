@@ -1,7 +1,10 @@
 import Navbar from "../Navbar";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { Users, Clock, ArrowRight, AlertCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Users, Clock, ArrowRight } from "lucide-react";
+import { createQueueEntry, getActiveQueueEntry } from "../../services/queueEntry";
+import { useAuth } from "../auth/AuthProvider";
+import type { Queue, QueueEntry } from "../../types";
 
 // Corrected paths: ../../ reaches the root 'data' folder from 'components/pages'
 import hoshinoImg from "../../data/hoshino.jpg";
@@ -10,83 +13,166 @@ import yuiImg from "../../data/yui.jpg";
 import nyanImg from "../../data/nyan.jpg";
 
 function JoinQueue() {
-  const [fullName, setFullName] = useState("");
-  const [showError, setShowError] = useState(false); // New state for error popup
   const navigate = useNavigate();
-  const minutesPerPerson = 15;
+  const { user: authenticatedUser } = useAuth();
+  const [queues, setQueues] = useState<Queue[]>([]);
+  const [entries, setEntries] = useState<QueueEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [submitError, setSubmitError] = useState("");
+  const [joiningQueueId, setJoiningQueueId] = useState<number | null>(null);
 
-  const services = [
-    { id: "gen", name: "General Consultation", currentQueue: 7, color: "bg-blue-400", img: hoshinoImg },
-    { id: "vax", name: "Vaccinations", currentQueue: 3, color: "bg-pink-400", img: kaguyaImg },
-    { id: "med", name: "Medical Certificate", currentQueue: 2, color: "bg-purple-400", img: yuiImg },
-    { id: "emer", name: "Emergency", currentQueue: 1, color: "bg-red-500", img: nyanImg },
+  const cardStyles = [
+    { color: "bg-blue-400", img: hoshinoImg },
+    { color: "bg-pink-400", img: kaguyaImg },
+    { color: "bg-purple-400", img: yuiImg },
+    { color: "bg-red-500", img: nyanImg },
   ];
 
-  const handleJoin = (service: any) => {
-    if (!fullName.trim()) {
-      setShowError(true); // Trigger popup instead of alert
-      return;
-    }
+  useEffect(() => {
+    let isCancelled = false;
 
-    const existingQueue = localStorage.getItem("activeQueue");
-    if (existingQueue) {
-      alert(`Conflict: Already in ${existingQueue} line!`);
-      return;
-    }
+    const loadQueueData = async () => {
+      try {
+        const [queueResponse, entryResponse] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_URL}/queue`),
+          fetch(`${import.meta.env.VITE_API_URL}/queueentry`)
+        ]);
 
-    localStorage.setItem("activeQueue", service.name);
-    
-    navigate("/status", {
-      state: {
-        totalMinutes: (service.currentQueue + 1) * minutesPerPerson,
-        fullName: fullName,
-        position: service.currentQueue + 1,
-        serviceName: service.name,
-        showSuccessModal: true 
+        if (!queueResponse.ok && queueResponse.status !== 204) {
+          throw new Error(`Failed to load queues: ${queueResponse.status}`);
+        }
+
+        if (!entryResponse.ok && entryResponse.status !== 204) {
+          throw new Error(`Failed to load queue entries: ${entryResponse.status}`);
+        }
+
+        if (isCancelled) {
+          return;
+        }
+
+        setQueues(queueResponse.status === 204 ? [] : await queueResponse.json());
+        setEntries(entryResponse.status === 204 ? [] : await entryResponse.json());
+        setSubmitError("");
+      } catch (error) {
+        console.error("Error loading queues", error);
+        if (!isCancelled) {
+          setQueues([]);
+          setEntries([]);
+          setSubmitError("Unable to load live queues right now.");
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
       }
-    });
+    };
+
+    void loadQueueData();
+    const timer = window.setInterval(() => {
+      void loadQueueData();
+    }, 10000);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const services = useMemo(() => {
+    return queues
+      .filter((queue) => queue.status === "Open")
+      .map((queue, index) => {
+        const waitingCount = entries.filter((entry) => entry.queueId === queue.id && entry.status === "Waiting").length;
+        const cardStyle = cardStyles[index % cardStyles.length];
+
+        return {
+          queueId: queue.id,
+          id: `queue-${queue.id}`,
+          name: queue.service?.name ?? `Queue ${queue.id}`,
+          currentQueue: waitingCount,
+          color: cardStyle.color,
+          img: cardStyle.img,
+          duration: queue.service?.duration ?? 15,
+        };
+      });
+  }, [entries, queues]);
+
+  const handleJoin = async (service: { queueId: number; name: string }) => {
+    if (!authenticatedUser) {
+      navigate("/login");
+      return;
+    }
+
+    try {
+      setJoiningQueueId(service.queueId);
+      setSubmitError("");
+      const activeEntry = await getActiveQueueEntry(authenticatedUser.email);
+
+      if (activeEntry) {
+        setSubmitError("You already have an active queue in the system.");
+        navigate("/status");
+        return;
+      }
+
+      await createQueueEntry({ queueId: service.queueId, userId: authenticatedUser.email, description: service.name });
+
+      localStorage.setItem("activeQueue", JSON.stringify({
+        queueId: service.queueId,
+        userId: authenticatedUser.email,
+        userName: authenticatedUser.name,
+        serviceName: service.name,
+      }));
+
+      navigate("/status", {
+        state: {
+          fullName: authenticatedUser.name,
+          serviceName: service.name,
+          showSuccessModal: true,
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      setSubmitError(`Unable to join queue: ${message}`);
+    } finally {
+      setJoiningQueueId(null);
+    }
   };
 
   return (
     <div className="min-h-screen bg-slate-50 relative">
       <Navbar />
 
-      {/* ERROR POPUP (Replaces the Alert) */}
-      {showError && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center gap-2 text-red-500 mb-4">
-              <AlertCircle size={20} />
-              <span className="text-xs font-black uppercase tracking-widest">Identification Required</span>
-            </div>
-            <h2 className="text-xl font-bold text-slate-900 mb-2">Identify yourself, Peasant!</h2>
-            <p className="text-slate-500 text-sm mb-6">Please enter your name before selecting a service.</p>
-            <button 
-              onClick={() => setShowError(false)} 
-              className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition-colors"
-            >
-              Understood
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="max-w-6xl mx-auto px-6 py-12">
         <div className="text-center mb-10">
           <h1 className="text-3xl font-black text-slate-800 uppercase tracking-tighter">Schale Clinic Registration</h1>
-          <input
-            type="text"
-            placeholder="Enter Student/Patient Name"
-            className="mt-6 w-full max-w-md px-6 py-3 border-2 border-blue-100 rounded-full focus:border-blue-500 outline-none shadow-sm transition-all"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-          />
+          <div className="mx-auto mt-6 max-w-xl rounded-3xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Joining As</p>
+            <h2 className="mt-2 text-2xl font-bold text-slate-900">{authenticatedUser?.name}</h2>
+            <p className="mt-1 text-sm text-slate-500">{authenticatedUser?.email}</p>
+            <p className="mt-3 text-sm text-slate-500">
+              Queue requests now use your registered patient account instead of a demo name selector.
+            </p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {submitError ? (
+          <div className="mx-auto mb-6 max-w-2xl rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+            {submitError}
+          </div>
+        ) : null}
+
+        {isLoading ? (
+          <div className="rounded-3xl border border-slate-200 bg-white py-20 text-center text-slate-500 shadow-sm">
+            Loading live queues...
+          </div>
+        ) : services.length === 0 ? (
+          <div className="rounded-3xl border border-slate-200 bg-white py-20 text-center text-slate-500 shadow-sm">
+            No open queues are available right now.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {services.map((s) => (
             <div key={s.id} className="bg-white rounded-3xl overflow-hidden shadow-md border border-slate-100 hover:shadow-xl transition-all group">
-              {/* CENTERED IMAGE CONTAINER */}
               <div className={`${s.color} h-48 relative overflow-hidden flex items-center justify-center`}>
                 <img 
                   src={s.img} 
@@ -102,15 +188,20 @@ function JoinQueue() {
               <div className="p-5 space-y-3">
                 <div className="flex justify-between text-[10px] font-black uppercase text-slate-400">
                   <span className="flex items-center gap-1"><Users size={12}/> {s.currentQueue} Waiting</span>
-                  <span className="flex items-center gap-1 text-blue-500"><Clock size={12}/> {s.currentQueue * minutesPerPerson}m</span>
+                  <span className="flex items-center gap-1 text-blue-500"><Clock size={12}/> {s.currentQueue * s.duration}m</span>
                 </div>
-                <button onClick={() => handleJoin(s)} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-xs hover:bg-blue-600 transition-all flex justify-center items-center gap-2 uppercase tracking-widest">
-                  Join Queue <ArrowRight size={14}/>
+                <button
+                  onClick={() => handleJoin(s)}
+                  disabled={joiningQueueId === s.queueId}
+                  className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-xs hover:bg-blue-600 transition-all flex justify-center items-center gap-2 uppercase tracking-widest disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {joiningQueueId === s.queueId ? "Joining..." : "Join Queue"} <ArrowRight size={14}/>
                 </button>
               </div>
             </div>
           ))}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
