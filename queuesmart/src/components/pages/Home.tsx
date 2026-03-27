@@ -1,10 +1,53 @@
 import Navbar from "../Navbar";
 import { Link } from "react-router-dom";
-import { MOCK_ENTRIES, MOCK_QUEUES } from "../../data/mockData";
+import { useEffect, useState } from "react";
+import type { Queue, QueueEntry } from "../../types";
 
 function Home() {
-  const totalWaiting = MOCK_ENTRIES.filter((entry) => entry.status === "Waiting").length;
-  const activeServices = MOCK_QUEUES.filter((queue) => queue.status === "Open");
+  const [queues, setQueues] = useState<Queue[]>([]);
+  const [entries, setEntries] = useState<QueueEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+
+        // Fetch queues
+        const queuesResponse = await fetch(`${import.meta.env.VITE_API_URL}/queue`);
+        const queuesData = queuesResponse.status === 204 ? [] : await queuesResponse.json();
+        
+        // Fetch queue entries
+        const entriesResponse = await fetch(`${import.meta.env.VITE_API_URL}/queueentry`);
+        const entriesData = entriesResponse.status === 204 ? [] : await entriesResponse.json();
+
+        if (!isCancelled) {
+          setQueues(queuesData);
+          setEntries(entriesData);
+        }
+      } catch (error) {
+        console.error("Error fetching home data:", error);
+        if (!isCancelled) {
+          setQueues([]);
+          setEntries([]);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void fetchData();
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  const totalWaiting = entries.filter((entry) => entry.status === "Waiting").length;
+  const activeServices = queues.filter((queue) => queue.status === "Open");
 
   return (
     <div className="min-h-screen bg-background">
@@ -74,7 +117,7 @@ function Home() {
       <section className="inverted-section px-4 py-16 sm:px-6">
         <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-6 text-center lg:grid-cols-4">
           <div>
-            <p className="text-4xl font-semibold">{MOCK_QUEUES.length}</p>
+            <p className="text-4xl font-semibold">{queues.length}</p>
             <p className="mt-2 text-sm uppercase tracking-[0.12em] text-background/70">Total Services</p>
           </div>
           <div>
@@ -102,20 +145,30 @@ function Home() {
             Active services available <span className="gradient-text">right now</span>
           </h2>
           <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {MOCK_QUEUES.map((queue) => (
-              <article key={queue.id} className="surface-card surface-card-hover p-6">
-                <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1">
-                  <span className={`h-2 w-2 rounded-full ${queue.status === "Open" ? "bg-emerald-500" : "bg-slate-400"}`} />
-                  <span className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">{queue.status}</span>
-                </div>
-                <h3 className="text-xl font-semibold text-foreground">{queue.service?.name}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{queue.service?.description}</p>
-                <div className="mt-4 flex items-center justify-between text-sm">
-                  <span className="rounded-full bg-accent/10 px-3 py-1 text-accent">{queue.service?.priority} Priority</span>
-                  <span className="text-muted-foreground">{queue.service?.duration} min</span>
-                </div>
-              </article>
-            ))}
+            {isLoading ? (
+              <div className="col-span-full flex h-32 items-center justify-center text-muted-foreground">
+                Loading services...
+              </div>
+            ) : queues.length > 0 ? (
+              queues.map((queue) => (
+                <article key={queue.id} className="surface-card surface-card-hover p-6">
+                  <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1">
+                    <span className={`h-2 w-2 rounded-full ${queue.status === "Open" ? "bg-emerald-500" : "bg-slate-400"}`} />
+                    <span className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">{queue.status}</span>
+                  </div>
+                  <h3 className="text-xl font-semibold text-foreground">{queue.service?.name}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{queue.service?.description}</p>
+                  <div className="mt-4 flex items-center justify-between text-sm">
+                    <span className="rounded-full bg-accent/10 px-3 py-1 text-accent">{queue.service?.priority} Priority</span>
+                    <span className="text-muted-foreground">{queue.service?.duration} min</span>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <div className="col-span-full flex h-32 items-center justify-center text-muted-foreground">
+                No services available at the moment.
+              </div>
+            )}
           </div>
         </div>
       </section>

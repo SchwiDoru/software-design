@@ -176,6 +176,21 @@ public class QueueEntryServiceTests: IDisposable
     }
 
     [Fact]
+    public async Task CreateQueueEntry_WhenQueueAlreadyHasInProgress_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        await AddWaitingQueueEntry(queueId: 1, userId: "create-inprogress-existing@example.com", status: QueueEntryStatus.InProgress);
+        var queueEntry = CreateValidQueueEntry(
+            queueId: 1,
+            userId: "create-inprogress-target@example.com",
+            status: QueueEntryStatus.InProgress,
+            priority: PriorityLevel.Low);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _service.CreateQueueEntry(queueEntry));
+    }
+
+    [Fact]
     public async Task CreateQueueEntry_WithTrimmedUserId_ReturnsNormalizedUserId()
     {
         // Arrange
@@ -337,6 +352,33 @@ public class QueueEntryServiceTests: IDisposable
         // Assert
         Assert.Equal(QueueEntryStatus.Waiting, updatedQueueEntry.Status);
         Assert.NotNull(updatedQueueEntry.Position);
+    }
+
+    [Fact]
+    public async Task UpdateQueueEntryStatus_WhenAnotherEntryInSameQueueIsInProgress_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        await AddWaitingQueueEntry(queueId: 1, userId: "inprogress-existing@example.com", status: QueueEntryStatus.InProgress);
+        var queueEntryToPromote = await AddWaitingQueueEntry(queueId: 1, userId: "inprogress-target@example.com", status: QueueEntryStatus.Waiting);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _service.UpdateQueueEntryStatus(queueEntryToPromote.Id, QueueEntryStatus.InProgress));
+    }
+
+    [Fact]
+    public async Task UpdateQueueEntryStatus_WhenOtherQueueHasInProgress_AllowsInProgressForCurrentQueue()
+    {
+        // Arrange
+        await AddWaitingQueueEntry(queueId: 1, userId: "inprogress-other-queue@example.com", status: QueueEntryStatus.InProgress);
+        var queueEntryToPromote = await AddWaitingQueueEntry(queueId: 2, userId: "inprogress-queue2@example.com", status: QueueEntryStatus.Waiting);
+
+        // Act
+        var updatedQueueEntry = await _service.UpdateQueueEntryStatus(queueEntryToPromote.Id, QueueEntryStatus.InProgress);
+
+        // Assert
+        Assert.Equal(QueueEntryStatus.InProgress, updatedQueueEntry.Status);
+        Assert.Null(updatedQueueEntry.Position);
     }
 
     [Fact]
@@ -549,10 +591,83 @@ public class QueueEntryServiceTests: IDisposable
     }
 
     [Fact]
+    public async Task EstimateWaitTime_WhenQueueHasInProgressEntry_IncludesRemainingInProgressTime()
+    {
+        // Arrange
+        const int queueId = 1;
+        const string waitingUserId = "etw-inprogress-waiting@example.com";
+        const string inProgressUserId = "etw-inprogress-current@example.com";
+
+        _testDbContext.UserProfiles.Add(new UserProfile { Email = waitingUserId, Name = "Waiting User" });
+        _testDbContext.UserProfiles.Add(new UserProfile { Email = inProgressUserId, Name = "Current User" });
+
+        var inProgressEntry = new QueueEntry
+        {
+            QueueId = queueId,
+            UserId = inProgressUserId,
+            Status = QueueEntryStatus.InProgress,
+            Priority = PriorityLevel.Low,
+            JoinTime = DateTime.UtcNow.AddMinutes(-5)
+        };
+
+        _testDbContext.QueueEntries.Add(inProgressEntry);
+        await _testDbContext.SaveChangesAsync();
+
+        var waitingEntry = await AddWaitingQueueEntry(
+            queueId: queueId,
+            userId: waitingUserId,
+            status: QueueEntryStatus.Waiting,
+            priority: PriorityLevel.Low);
+
+        // Act
+        var estimated = await _service.EstimateWaitTime(queueId, waitingUserId);
+
+        // Assert
+        Assert.Equal(waitingEntry.Position ?? -1, estimated.Position);
+        Assert.InRange(estimated.EstimatedWaitTimeMinutes, 10, 11);
+        Assert.Contains("Current patient has been in progress for", estimated.Message);
+        Assert.Equal(15, estimated.ServiceDurationMinutes);
+    }
+
+    [Fact]
     public async Task EstimateWaitTime_WhenQueueEntryNotFound_ThrowsKeyNotFoundException()
     {
         // Act & Assert
         await Assert.ThrowsAsync<KeyNotFoundException>(() => _service.EstimateWaitTime(1, "no-such-user@example.com"));
+    }
+
+    [Fact]
+    public async Task UpdateQueueEntryStatus_WhenStatusIsCancelled_AllowsEvenIfQueueIsClosed()
+    {
+        // Arrange
+        var queueEntry = await AddWaitingQueueEntry(queueId: 2, status: QueueEntryStatus.Waiting, userId: "cancel-closed@example.com");
+        var queue = await _testDbContext.Queues.FirstAsync(q => q.Id == 2);
+        queue.Status = QueueStatus.Closed;
+        await _testDbContext.SaveChangesAsync();
+
+        // Act - Should not throw even though queue is closed
+        var updatedEntry = await _service.UpdateQueueEntryStatus(queueEntry.Id, QueueEntryStatus.Cancelled);
+
+        // Assert
+        Assert.Equal(QueueEntryStatus.Cancelled, updatedEntry.Status);
+        Assert.Null(updatedEntry.Position);
+    }
+
+    [Fact]
+    public async Task UpdateQueueEntryStatus_WhenStatusIsRemoved_AllowsEvenIfQueueIsClosed()
+    {
+        // Arrange
+        var queueEntry = await AddWaitingQueueEntry(queueId: 2, status: QueueEntryStatus.Waiting, userId: "remove-closed@example.com");
+        var queue = await _testDbContext.Queues.FirstAsync(q => q.Id == 2);
+        queue.Status = QueueStatus.Closed;
+        await _testDbContext.SaveChangesAsync();
+
+        // Act - Should not throw even though queue is closed
+        var updatedEntry = await _service.UpdateQueueEntryStatus(queueEntry.Id, QueueEntryStatus.Removed);
+
+        // Assert
+        Assert.Equal(QueueEntryStatus.Removed, updatedEntry.Status);
+        Assert.Null(updatedEntry.Position);
     }
 
     public void Dispose()

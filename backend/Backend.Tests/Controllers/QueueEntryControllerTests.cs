@@ -353,6 +353,24 @@ public class QueueEntryControllerTests
     }
 
     [Fact]
+    public async Task UpdateQueueEntryStatusController_WhenQueueAlreadyHasInProgress_ReturnsConflictWithErrorMessage()
+    {
+        var dto = new UpdateQueueEntryStatusDTO { Status = QueueEntryStatus.InProgress };
+
+        _queueEntryServiceMock
+            .Setup(service => service.UpdateQueueEntryStatus(1, dto.Status))
+            .ThrowsAsync(new InvalidOperationException("Queue with ID 1 already has an entry in progress"));
+
+        var result = await _controller.UpdateQueueEntryStatusController(1, dto);
+
+        var conflictResult = Assert.IsType<ConflictObjectResult>(result.Result);
+        Assert.Equal(409, conflictResult.StatusCode);
+
+        var payloadText = conflictResult.Value?.ToString() ?? string.Empty;
+        Assert.Contains("already has an entry in progress", payloadText);
+    }
+
+    [Fact]
     public async Task UpdateQueueEntryStatusController_WhenKeyNotFound_ReturnsNotFound()
     {
         var dto = new UpdateQueueEntryStatusDTO { Status = QueueEntryStatus.Waiting };
@@ -613,5 +631,55 @@ public class QueueEntryControllerTests
 
         var objectResult = Assert.IsType<ObjectResult>(result.Result);
         Assert.Equal(500, objectResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateQueueEntryStatusController_WhenStatusIsCancelled_SucceedsEvenIfQueueClosed()
+    {
+        var dto = new UpdateQueueEntryStatusDTO { Status = QueueEntryStatus.Cancelled };
+
+        var cancelledEntry = new QueueEntry
+        {
+            QueueId = 1,
+            UserId = "cancel@example.com",
+            Status = QueueEntryStatus.Cancelled,
+            Priority = PriorityLevel.Low,
+            Position = null
+        };
+
+        _queueEntryServiceMock
+            .Setup(service => service.UpdateQueueEntryStatus(1, QueueEntryStatus.Cancelled))
+            .ReturnsAsync(cancelledEntry);
+
+        var result = await _controller.UpdateQueueEntryStatusController(1, dto);
+
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(cancelledEntry, okResult.Value);
+        Assert.Equal(QueueEntryStatus.Cancelled, ((QueueEntry)okResult.Value).Status);
+    }
+
+    [Fact]
+    public async Task UpdateQueueEntryStatusController_WhenStatusIsRemoved_SucceedsEvenIfQueueClosed()
+    {
+        var dto = new UpdateQueueEntryStatusDTO { Status = QueueEntryStatus.Removed };
+
+        var removedEntry = new QueueEntry
+        {
+            QueueId = 1,
+            UserId = "remove@example.com",
+            Status = QueueEntryStatus.Removed,
+            Priority = PriorityLevel.Low,
+            Position = null
+        };
+
+        _queueEntryServiceMock
+            .Setup(service => service.UpdateQueueEntryStatus(1, QueueEntryStatus.Removed))
+            .ReturnsAsync(removedEntry);
+
+        var result = await _controller.UpdateQueueEntryStatusController(1, dto);
+
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(removedEntry, okResult.Value);
+        Assert.Equal(QueueEntryStatus.Removed, ((QueueEntry)okResult.Value).Status);
     }
 }

@@ -5,7 +5,7 @@ const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 export interface CreateQueueEntryDTO {
   queueId: number;
   userId: string;
-  description?: string;
+  description?: string | null;
 }
 
 export interface EstimatedWaitTimeDTO {
