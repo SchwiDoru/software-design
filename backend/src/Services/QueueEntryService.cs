@@ -29,6 +29,24 @@ public class QueueEntryServices : IQueueEntryServices
         }
     }
 
+    private async Task EnsureNoOtherInProgressEntryInQueue(int queueId, int? excludedQueueEntryId = null)
+    {
+        if (queueId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(queueId), "Queue ID must be greater than 0");
+        }
+
+        var hasAnotherInProgressEntry = await _dbContext.QueueEntries.AnyAsync(queueEntry =>
+            queueEntry.QueueId == queueId &&
+            queueEntry.Status == QueueEntryStatus.InProgress &&
+            (!excludedQueueEntryId.HasValue || queueEntry.Id != excludedQueueEntryId.Value));
+
+        if (hasAnotherInProgressEntry)
+        {
+            throw new InvalidOperationException($"Queue with ID {queueId} already has an entry in progress");
+        }
+    }
+
     private async Task<int> CalculateQueueEntryPosition(QueueEntry queueEntry)
     {
         if (queueEntry == null)
@@ -236,6 +254,11 @@ public class QueueEntryServices : IQueueEntryServices
 
             await EnsureQueueIsOpen(queueEntry.QueueId);
 
+            if (queueEntry.Status == QueueEntryStatus.InProgress)
+            {
+                await EnsureNoOtherInProgressEntryInQueue(queueEntry.QueueId);
+            }
+
             var userExists = await _dbContext.UserProfiles.AnyAsync(u => u.Email == normalizedUserId);
             if (!userExists)
             {
@@ -369,7 +392,17 @@ public class QueueEntryServices : IQueueEntryServices
 
             if (previousStatus != status)
             {
-                await EnsureQueueIsOpen(existingQueueEntry.QueueId);
+                var isCancelOrRemove = status == QueueEntryStatus.Cancelled || status == QueueEntryStatus.Removed;
+                
+                if (!isCancelOrRemove)
+                {
+                    await EnsureQueueIsOpen(existingQueueEntry.QueueId);
+                }
+
+                if (status == QueueEntryStatus.InProgress)
+                {
+                    await EnsureNoOtherInProgressEntryInQueue(existingQueueEntry.QueueId, existingQueueEntry.Id);
+                }
             }
 
             existingQueueEntry.Status = status;
@@ -627,19 +660,46 @@ public class QueueEntryServices : IQueueEntryServices
                 throw new KeyNotFoundException($"Service for queue {queueId} was not found");
             }
 
+            var currentInProgressEntry = await _dbContext.QueueEntries
+                .Where(qe => qe.QueueId == queueId && qe.Status == QueueEntryStatus.InProgress)
+                .OrderBy(qe => qe.JoinTime)
+                .FirstOrDefaultAsync();
+
+            var inProgressElapsedMinutes = 0;
+            var inProgressRemainingMinutes = 0;
+
+            if (currentInProgressEntry != null)
+            {
+                inProgressElapsedMinutes = Math.Max(0, (int)Math.Floor((DateTime.UtcNow - currentInProgressEntry.JoinTime).TotalMinutes));
+                inProgressRemainingMinutes = Math.Max(0, service.Duration - inProgressElapsedMinutes);
+            }
+
             // Calculate wait time based on position and service duration
-            // Formula: Position × Service Duration
+            // Formula when a patient is in progress: Remaining current service + (Position × Service Duration)
+            // Formula otherwise: Position × Service Duration
             int estimatedWaitTimeMinutes = 0;
             string message = string.Empty;
 
             if (queueEntry.Status == QueueEntryStatus.Waiting && queueEntry.Position.HasValue)
             {
-                estimatedWaitTimeMinutes = queueEntry.Position.Value * service.Duration;
-                message = $"You are at position {queueEntry.Position + 1}. Estimated wait time is approximately {estimatedWaitTimeMinutes} minutes.";
+                estimatedWaitTimeMinutes = (queueEntry.Position.Value * service.Duration) + inProgressRemainingMinutes;
+
+                if (currentInProgressEntry != null)
+                {
+                    message = $"You are at position {queueEntry.Position + 1}. Current patient has been in progress for {inProgressElapsedMinutes} minutes. Estimated wait time is approximately {estimatedWaitTimeMinutes} minutes.";
+                }
+                else
+                {
+                    message = $"You are at position {queueEntry.Position + 1}. Estimated wait time is approximately {estimatedWaitTimeMinutes} minutes.";
+                }
             }
             else if (queueEntry.Status == QueueEntryStatus.Pending)
             {
                 message = "Your position has not been assigned yet. Please wait for confirmation.";
+            }
+            else if (queueEntry.Status == QueueEntryStatus.InProgress)
+            {
+                message = $"Your consultation is currently in progress. Elapsed time: {inProgressElapsedMinutes} minutes.";
             }
             else if (queueEntry.Status == QueueEntryStatus.Completed)
             {

@@ -16,7 +16,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
     { name: "Dashboard", path: "/admin" },
     { name: "Pending Reviews", path: "/admin/pending" },
     { name: "Manage Queues", path: "/admin/queue" },
-    { name: "Doctor Queue", path: "/admin/doctor-queue" },
+    { name: "Active Patients", path: "/admin/doctor-queue" },
     { name: "Patients", path: "/admin/patients" },
   ];
 

@@ -17,6 +17,25 @@ type PendingReorderMove = {
   position: number;
 };
 
+type ActionMessage = {
+  type: "success" | "error";
+  text: string;
+};
+
+const extractApiErrorMessage = async (response: Response, fallbackMessage: string) => {
+  const payload = await response.json().catch(() => null) as { error?: string; message?: string } | null;
+
+  if (payload?.error && payload.error.trim().length > 0) {
+    return payload.error;
+  }
+
+  if (payload?.message && payload.message.trim().length > 0) {
+    return payload.message;
+  }
+
+  return fallbackMessage;
+};
+
 const createQueueOrderSnapshots = (queueEntries: QueueEntry[]) => {
   return queueEntries.reduce<Record<number, QueueOrderSnapshot[]>>((snapshots, entry) => {
     if (entry.status !== "Waiting" || entry.position === null) {
@@ -42,6 +61,7 @@ export default function QueueManagement() {
   const [savedQueueOrders, setSavedQueueOrders] = useState<Record<number, QueueOrderSnapshot[]>>({});
   const [pendingReorderMoves, setPendingReorderMoves] = useState<PendingReorderMove[]>([]);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
+  const [actionMessage, setActionMessage] = useState<ActionMessage | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
@@ -57,7 +77,7 @@ export default function QueueManagement() {
         }
 
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          throw new Error(await extractApiErrorMessage(response, `Failed to load queues (${response.status}).`));
         }
 
         const data = await response.json();
@@ -68,6 +88,10 @@ export default function QueueManagement() {
         console.error("Error fetching queues:", error);
         if (!isCancelled) {
           setQueues([]);
+          setActionMessage({
+            type: "error",
+            text: error instanceof Error ? error.message : "Failed to load queues."
+          });
         }
       }
     };
@@ -97,7 +121,7 @@ export default function QueueManagement() {
         }
 
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          throw new Error(await extractApiErrorMessage(response, `Failed to load queue entries (${response.status}).`));
         }
 
         const data = await response.json();
@@ -112,6 +136,10 @@ export default function QueueManagement() {
           setEntries([]);
           setSavedQueueOrders({});
           setPendingReorderMoves([]);
+          setActionMessage({
+            type: "error",
+            text: error instanceof Error ? error.message : "Failed to load queue entries."
+          });
         }
       }
     };
@@ -188,12 +216,12 @@ export default function QueueManagement() {
   }, [currentQueueEntries, selectedQueueId]);
 
   const selectedQueue = queues.find((queue) => queue.id === selectedQueueId);
-  const inProgressCount = useMemo(() => {
+  const inProgressEntry = useMemo(() => {
     if (!selectedQueueId) {
-      return 0;
+      return null;
     }
 
-    return entries.filter((entry) => entry.queueId === selectedQueueId && entry.status === "InProgress").length;
+    return entries.find((entry) => entry.queueId === selectedQueueId && entry.status === "InProgress") ?? null;
   }, [entries, selectedQueueId]);
 
   const formatJoinTime = (joinTime: string) => {
@@ -247,6 +275,10 @@ export default function QueueManagement() {
     });
 
     setPendingReorderMoves((previous) => previous.filter((move) => move.queueId !== selectedQueueId));
+    setActionMessage({
+      type: "success",
+      text: "Queue order reset to the last saved order."
+    });
   };
 
   const handleConfirmOrder = async () => {
@@ -272,7 +304,7 @@ export default function QueueManagement() {
         );
 
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          throw new Error(await extractApiErrorMessage(response, `Failed to update queue order (${response.status}).`));
         }
       }
 
@@ -286,8 +318,16 @@ export default function QueueManagement() {
         }))
       }));
       setPendingReorderMoves((previous) => previous.filter((move) => move.queueId !== selectedQueueId));
+      setActionMessage({
+        type: "success",
+        text: "Queue order saved successfully."
+      });
     } catch (error) {
       console.error("Error saving queue order:", error);
+      setActionMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to save queue order."
+      });
     } finally {
       setIsSavingOrder(false);
     }
@@ -311,10 +351,14 @@ export default function QueueManagement() {
       );
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(await extractApiErrorMessage(response, `Failed to send next patient to front desk (${response.status}).`));
       }
     } catch (error) {
       console.error("Error updating queue entry status:", error);
+      setActionMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to send next patient to front desk."
+      });
       return;
     }
 
@@ -327,6 +371,11 @@ export default function QueueManagement() {
         .map((item, index) => ({ ...item, position: index }));
 
       return [...otherQueues, ...thisQueue];
+    });
+
+    setActionMessage({
+      type: "success",
+      text: `${nextUser.user?.name ?? "Patient"} was sent to the front desk.`
     });
   };
 
@@ -346,10 +395,14 @@ export default function QueueManagement() {
       );
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(await extractApiErrorMessage(response, `Failed to remove user from queue (${response.status}).`));
       }
     } catch (error) {
       console.error("Error removing user from queue:", error);
+      setActionMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to remove user from queue."
+      });
       return;
     }
 
@@ -362,6 +415,11 @@ export default function QueueManagement() {
         .map((item, index) => ({ ...item, position: index }));
 
       return [...otherQueues, ...thisQueue];
+    });
+
+    setActionMessage({
+      type: "success",
+      text: "Patient removed from queue."
     });
   };
 
@@ -459,15 +517,24 @@ export default function QueueManagement() {
                     <span className="hidden md:inline">|</span>
                     <span>{currentQueueEntries.length} waiting</span>
                     <span className="hidden md:inline">|</span>
-                    <span>{inProgressCount} with doctor</span>
+                    <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 font-semibold ${
+                      inProgressEntry
+                        ? "bg-red-50 text-red-700"
+                        : "bg-emerald-50 text-emerald-700"
+                      }`}>
+                      <span className={`h-2 w-2 rounded-full ${inProgressEntry ? "bg-red-500" : "bg-emerald-500"} animate-pulse`}></span>
+                      {inProgressEntry
+                        ? `${inProgressEntry.user?.name ?? "A patient"} is being operated on`
+                        : "Doctor is free"}
+                    </span>
                   </div>
                 </div>
-                <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row">
+                <div className="flex w-full flex-col gap-2 sm:gap-3 md:flex-row md:flex-wrap md:gap-3 lg:flex-nowrap">
                   <Button
                     variant="secondary"
                     onClick={handleResetOrder}
                     disabled={!hasPendingReorder || isSavingOrder}
-                    className="w-full md:w-auto"
+                    className="w-full md:flex-1 lg:w-auto"
                   >
                     Reset Order
                   </Button>
@@ -475,7 +542,7 @@ export default function QueueManagement() {
                     variant="primary"
                     onClick={handleConfirmOrder}
                     disabled={!hasPendingReorder || isSavingOrder}
-                    className="w-full md:w-auto"
+                    className="w-full md:flex-1 lg:w-auto"
                   >
                     {isSavingOrder ? "Saving Order..." : "Confirm Order"}
                   </Button>
@@ -483,12 +550,23 @@ export default function QueueManagement() {
                     variant="success"
                     onClick={handleServeNext}
                     disabled={currentQueueEntries.length === 0 || isSavingOrder}
-                    className="w-full md:w-auto"
+                    className="w-full md:flex-1 lg:w-auto"
                   >
-                    Send Next To Front Desk
+                    Send to Doctor
                   </Button>
                 </div>
               </div>
+
+              {actionMessage ? (
+                <div
+                  className={`mx-4 mt-4 rounded-xl border px-4 py-3 text-sm ${actionMessage.type === "success"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-rose-200 bg-rose-50 text-rose-700"
+                    }`}
+                >
+                  {actionMessage.text}
+                </div>
+              ) : null}
 
               <div className="flex-1 overflow-auto bg-muted/30 p-4">
                 <DragDropContext onDragEnd={onDragEnd}>

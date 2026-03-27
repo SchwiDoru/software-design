@@ -7,11 +7,22 @@ import { useNotificationFeed } from "../../hooks/useNotificationFeed";
 import { useAuth } from "../auth/AuthProvider";
 import type { NotificationEvent, QueueEntry } from "../../types";
 
+type ActionMessage = { type: "success" | "error"; text: string };
+
+const extractApiErrorMessage = async (response: Response, fallbackMessage: string) => {
+  const payload = await response.json().catch(() => null) as { error?: string; message?: string } | null;
+  if (payload && payload.error && payload.error.trim().length > 0) return payload.error;
+  if (payload && payload.message && payload.message.trim().length > 0) return payload.message;
+  return fallbackMessage;
+};
+
 export default function Dashboard() {
   const { user: authenticatedUser } = useAuth();
   const [activeEntry, setActiveEntry] = useState<QueueEntry | null>(null);
   const [estimatedMinutes, setEstimatedMinutes] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [actionMessage, setActionMessage] = useState<ActionMessage | null>(null);
+  const [isLeavingQueue, setIsLeavingQueue] = useState(false);
   const { notifications, recentNotifications, dismissNotification } = useNotificationFeed(authenticatedUser);
 
   useEffect(() => {
@@ -63,6 +74,49 @@ export default function Dashboard() {
     };
   }, [authenticatedUser]);
 
+  const handleLeaveQueue = async () => {
+    if (!activeEntry) return;
+
+    setIsLeavingQueue(true);
+    setActionMessage(null);
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/queueentry/${activeEntry.id}/status`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ status: "Cancelled" })
+        }
+      );
+
+      if (!response.ok) {
+        const errorMessage = await extractApiErrorMessage(
+          response,
+          "Failed to leave queue"
+        );
+        throw new Error(errorMessage);
+      }
+
+      setActiveEntry(null);
+      setEstimatedMinutes(0);
+      setActionMessage({
+        type: "success",
+        text: "You have been removed from the queue"
+      });
+    } catch (error) {
+      console.error("Error leaving queue:", error);
+      setActionMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to leave queue. Please try again."
+      });
+    } finally {
+      setIsLeavingQueue(false);
+    }
+  };
+
   const positionLabel = !activeEntry
     ? "--"
     : activeEntry.status === "Pending"
@@ -101,7 +155,15 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
-
+          {actionMessage ? (
+            <div className={`mb-8 rounded-2xl border px-4 py-3 text-sm ${
+              actionMessage.type === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-rose-200 bg-rose-50 text-rose-700"
+            }`}>
+              {actionMessage.text}
+            </div>
+          ) : null}
           <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <article className="surface-card p-5">
               <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Queue Position</p>
@@ -163,6 +225,14 @@ export default function Dashboard() {
                           : "Go to the front desk. Staff is preparing your visit with the doctor."}
                     </p>
                   </div>
+
+                  <button
+                    onClick={handleLeaveQueue}
+                    disabled={isLeavingQueue}
+                    className="w-full rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLeavingQueue ? "Removing from queue..." : "Leave Queue"}
+                  </button>
                 </div>
               ) : (
                 <div className="rounded-xl border border-dashed border-border bg-muted/30 p-8 text-center text-muted-foreground">
