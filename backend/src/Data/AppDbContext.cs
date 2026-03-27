@@ -13,6 +13,9 @@ public class AppDbContext: DbContext
     public DbSet<UserProfile> UserProfiles {get; set;}
     public DbSet<QueueEntry> QueueEntries {get; set;}
     public DbSet<NotificationEvent> NotificationEvents {get; set;}
+    public DbSet<History> Histories { get; set; }
+    public DbSet<HistoryDetail> HistoryDetails { get; set; }
+    public DbSet<Prescription> Prescriptions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -26,5 +29,27 @@ public class AppDbContext: DbContext
 
         modelBuilder.Entity<NotificationEvent>()
             .HasIndex(notification => new { notification.Audience, notification.UserId, notification.CreatedAt });
+
+        modelBuilder.Entity<History>()
+            .HasIndex(history => history.QueueEntryId)
+            .IsUnique();
+
+        modelBuilder.Entity<History>()
+            .HasOne(history => history.QueueEntry)
+            .WithMany()
+            .HasForeignKey(history => history.QueueEntryId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<HistoryDetail>()
+            .HasOne(detail => detail.History)
+            .WithMany(history => history.HistoryDetails)
+            .HasForeignKey(detail => detail.HistoryId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Prescription>()
+            .HasOne(prescription => prescription.History)
+            .WithMany(history => history.Prescriptions)
+            .HasForeignKey(prescription => prescription.HistoryId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

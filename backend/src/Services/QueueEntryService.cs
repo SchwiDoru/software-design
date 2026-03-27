@@ -166,6 +166,7 @@ public class QueueEntryServices : IQueueEntryServices
         {
             return await _dbContext.QueueEntries
                                     .Include(qe => qe.Queue)
+                                        .ThenInclude(queue => queue!.Service)
                                     .Include(qe => qe.User)
                                     .OrderBy(qe => qe.Position)
                                     .ToListAsync();
@@ -401,6 +402,10 @@ public class QueueEntryServices : IQueueEntryServices
             if (previousStatus == QueueEntryStatus.Pending && status == QueueEntryStatus.Waiting)
             {
                 await _notificationService.CreatePatientQueueApprovedNotification(existingQueueEntry.Id);
+            }
+            if (previousStatus != QueueEntryStatus.InProgress && status == QueueEntryStatus.InProgress)
+            {
+                await _notificationService.CreatePatientFrontDeskNotification(existingQueueEntry.Id);
             }
             await _notificationService.NotifyPatientIfFirstInLine(existingQueueEntry.QueueId);
 

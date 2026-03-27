@@ -40,11 +40,13 @@ function writeSeenIds(key: string, ids: Set<string>) {
 
 export function useNotificationFeed(user: Pick<User, "role" | "email"> | null) {
   const [notifications, setNotifications] = useState<NotificationEvent[]>([]);
+  const [recentNotifications, setRecentNotifications] = useState<NotificationEvent[]>([]);
   const sinceRef = useRef<string | undefined>(undefined);
   const seenStorageKey = useMemo(() => (user ? getSeenStorageKey(user) : null), [user]);
 
   useEffect(() => {
     setNotifications([]);
+    setRecentNotifications([]);
     sinceRef.current = undefined;
   }, [seenStorageKey]);
 
@@ -69,6 +71,17 @@ export function useNotificationFeed(user: Pick<User, "role" | "email"> | null) {
         if (latestCreatedAt) {
           sinceRef.current = latestCreatedAt;
         }
+
+        setRecentNotifications((previous) => {
+          const mergedById = new Map<number, NotificationEvent>();
+          [...nextNotifications, ...previous].forEach((notification) => {
+            mergedById.set(notification.id, notification);
+          });
+
+          return Array.from(mergedById.values())
+            .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+            .slice(0, 20);
+        });
 
         const seenIds = readSeenIds(seenStorageKey);
         const unseenNotifications = nextNotifications.filter((notification) => !seenIds.has(getNotificationFingerprint(notification)));
@@ -107,6 +120,7 @@ export function useNotificationFeed(user: Pick<User, "role" | "email"> | null) {
 
   return {
     notifications,
+    recentNotifications,
     dismissNotification,
   };
 }
