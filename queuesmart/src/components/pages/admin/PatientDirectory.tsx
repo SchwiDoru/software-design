@@ -1,39 +1,68 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "../../admin/AdminLayout";
 import { Search, Calendar, Phone, User, Mail } from "lucide-react";
 import { Button } from "../../ui/Button";
 import { Link } from "react-router-dom";
 import { usePatientSearchStore } from "../../../data/patientSearchStore";
-
-// Mock Data for the table
-const mockPatients = [
-  { id: "1", name: "Alice Brown", email: "alice@example.com", phone: "555-0101", lastVisit: "2026-02-18", lastService: "General Consultation", status: "Active" },
-  { id: "2", name: "Bob Wilson", email: "bob@example.com", phone: "555-0102", lastVisit: "2026-02-17", lastService: "Blood Work", status: "Active" },
-  { id: "3", name: "Jane Smith", email: "jane@example.com", phone: "555-0103", lastVisit: "2026-02-18", lastService: "Vaccination", status: "Pending" },
-];
+import { getPatients } from "../../../services/patients";
+import type { PatientSummary } from "../../../types";
 
 export default function PatientDirectory() {
-  // 1. Hook into your existing store
-const { 
-  searchQuery, setSearchQuery, 
-  searchType, setSearchType, 
-  serviceFilter, setServiceFilter,
-  dateFilter, setDateFilter 
-} = usePatientSearchStore();
+  const [patients, setPatients] = useState<PatientSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const {
+    searchQuery, setSearchQuery,
+    searchType, setSearchType,
+    serviceFilter, setServiceFilter,
+    dateFilter, setDateFilter
+  } = usePatientSearchStore();
 
-  // Filtering Logic
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadPatients = async () => {
+      try {
+        const nextPatients = await getPatients();
+        if (!isCancelled) {
+          setPatients(nextPatients);
+        }
+      } catch (error) {
+        console.warn("Failed to load patients", error);
+        if (!isCancelled) {
+          setPatients([]);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadPatients();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  const serviceOptions = useMemo(() => {
+    return Array.from(
+      new Set(patients.map((patient) => patient.lastService).filter((service): service is string => Boolean(service)))
+    ).sort();
+  }, [patients]);
+
   const filteredPatients = useMemo(() => {
-      return mockPatients.filter(p => {
-        const matchesSearch = searchType === "name" 
-          ? p.name.toLowerCase().includes(searchQuery.toLowerCase())
-          : p.phone.includes(searchQuery);
-        
-        const matchesService = serviceFilter === "any" || p.lastService === serviceFilter;
-        const matchesDate = !dateFilter || p.lastVisit === dateFilter;
+    return patients.filter((patient) => {
+      const matchesSearch = searchType === "name"
+        ? patient.name.toLowerCase().includes(searchQuery.toLowerCase())
+        : (patient.phoneNumber ?? "").includes(searchQuery);
 
-        return matchesSearch && matchesService && matchesDate;
-      });
-    }, [searchQuery, searchType, serviceFilter, dateFilter]);
+      const matchesService = serviceFilter === "any" || patient.lastService === serviceFilter;
+      const matchesDate = !dateFilter || (patient.lastVisitDate ? patient.lastVisitDate.slice(0, 10) === dateFilter : false);
+
+      return matchesSearch && matchesService && matchesDate;
+    });
+  }, [patients, searchQuery, searchType, serviceFilter, dateFilter]);
 
   return (
     <AdminLayout>
@@ -65,7 +94,7 @@ const {
                 <select 
                   className="bg-background text-[10px] font-bold uppercase py-1 px-2 rounded border border-border"
                   value={searchType}
-                  onChange={(e) => setSearchType(e.target.value as any)}
+                  onChange={(e) => setSearchType(e.target.value as "name" | "phone")}
                 >
                   <option value="name">Name</option>
                   <option value="phone">Phone</option>
@@ -96,9 +125,9 @@ const {
                 onChange={(e) => setServiceFilter(e.target.value)}
               >
                 <option value="any">Any Service</option>
-                <option value="General Consultation">Consultation</option>
-                <option value="Blood Work">Blood Work</option>
-                <option value="Vaccination">Vaccination</option>
+                {serviceOptions.map((service) => (
+                  <option key={service} value={service}>{service}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -116,8 +145,13 @@ const {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
+              {isLoading ? (
+                <tr>
+                  <td colSpan={4} className="p-8 text-center text-muted-foreground">Loading patient directory...</td>
+                </tr>
+              ) : null}
               {filteredPatients.map((patient) => (
-                <tr key={patient.id} className="hover:bg-muted/30 transition-colors group">
+                <tr key={patient.email} className="hover:bg-muted/30 transition-colors group">
                   <td className="p-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent font-bold">
@@ -125,22 +159,24 @@ const {
                       </div>
                       <div>
                         <p className="font-semibold text-foreground">{patient.name}</p>
-                        <p className="text-[10px] font-mono text-muted-foreground">{patient.id}</p>
+                        <p className="text-[10px] font-mono text-muted-foreground">{patient.email}</p>
                       </div>
                     </div>
                   </td>
                   <td className="p-4 text-sm">
                     <div className="flex flex-col gap-1">
                       <span className="flex items-center gap-2"><Mail size={12}/> {patient.email}</span>
-                      <span className="flex items-center gap-2"><Phone size={12}/> {patient.phone}</span>
+                      <span className="flex items-center gap-2"><Phone size={12}/> {patient.phoneNumber || "No phone on file"}</span>
                     </div>
                   </td>
                   <td className="p-4">
-                    <p className="text-sm font-medium">{patient.lastService}</p>
-                    <p className="text-xs text-muted-foreground">{patient.lastVisit}</p>
+                    <p className="text-sm font-medium">{patient.lastService || "No visit recorded"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {patient.lastVisitDate ? new Date(patient.lastVisitDate).toLocaleDateString() : patient.currentStatus || "No activity"}
+                    </p>
                   </td>
                   <td className="p-4 text-right">
-                    <Link to={`/admin/patients/${patient.id}`}>
+                    <Link to={`/admin/patients/${encodeURIComponent(patient.email)}`}>
                       <Button variant="secondary" size="sm">
                         Details
                       </Button>
@@ -151,7 +187,7 @@ const {
             </tbody>
           </table>
           
-          {filteredPatients.length === 0 && (
+          {!isLoading && filteredPatients.length === 0 && (
             <div className="py-20 text-center text-muted-foreground">
               <Search className="mx-auto mb-4 opacity-20" size={48} />
               <p>No patients found matching those filters.</p>

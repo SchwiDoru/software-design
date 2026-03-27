@@ -12,7 +12,7 @@ export default function Dashboard() {
   const [activeEntry, setActiveEntry] = useState<QueueEntry | null>(null);
   const [estimatedMinutes, setEstimatedMinutes] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const { notifications, dismissNotification } = useNotificationFeed(authenticatedUser);
+  const { notifications, recentNotifications, dismissNotification } = useNotificationFeed(authenticatedUser);
 
   useEffect(() => {
     if (!authenticatedUser) {
@@ -67,6 +67,8 @@ export default function Dashboard() {
     ? "--"
     : activeEntry.status === "Pending"
       ? "Pending"
+      : activeEntry.status === "InProgress"
+        ? "Front Desk"
       : `#${(activeEntry.position ?? 0) + 1}`;
 
   const statusTone = activeEntry?.status === "Waiting"
@@ -77,7 +79,7 @@ export default function Dashboard() {
         ? "bg-emerald-50 text-emerald-700"
         : "bg-muted text-muted-foreground";
 
-  const notificationSummary: NotificationEvent[] = notifications.slice(0, 3);
+  const notificationSummary: NotificationEvent[] = recentNotifications.slice(0, 6);
 
   return (
     <div className="min-h-screen bg-background">
@@ -118,7 +120,11 @@ export default function Dashboard() {
             <article className="surface-card p-5">
               <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Estimated Wait</p>
               <p className="mt-3 text-4xl font-semibold text-foreground">
-                {activeEntry?.status === "Pending" ? "--" : `${estimatedMinutes}m`}
+                {activeEntry?.status === "Pending"
+                  ? "--"
+                  : activeEntry?.status === "InProgress"
+                    ? "Now"
+                    : `${estimatedMinutes}m`}
               </p>
             </article>
 
@@ -154,7 +160,7 @@ export default function Dashboard() {
                         ? "Your request is waiting for staff review."
                         : activeEntry.status === "Waiting"
                           ? `You are currently #${(activeEntry.position ?? 0) + 1} in line.`
-                          : "Your visit is currently in progress."}
+                          : "Go to the front desk. Staff is preparing your visit with the doctor."}
                     </p>
                   </div>
                 </div>
@@ -173,8 +179,8 @@ export default function Dashboard() {
             </div>
 
             <div className="surface-card p-6">
-              <h2 className="text-3xl text-foreground">Notifications</h2>
-              <p className="mt-2 text-sm text-muted-foreground">Recent patient alerts from the backend queue handler.</p>
+              <h2 className="text-3xl text-foreground">Notification History</h2>
+              <p className="mt-2 text-sm text-muted-foreground">Recent patient alerts stored by the backend queue handler.</p>
               <div className="mt-5 space-y-3">
                 {notificationSummary.length > 0 ? (
                   notificationSummary.map((notification) => (
@@ -184,7 +190,11 @@ export default function Dashboard() {
                         ? "border-amber-200 bg-amber-50 text-amber-700"
                         : notification.type === "QueueApproved"
                           ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : "border-accent/30 bg-accent/5 text-accent"
+                          : notification.type === "FrontDesk"
+                            ? "border-cyan-200 bg-cyan-50 text-cyan-700"
+                            : notification.type === "VisitCompleted"
+                              ? "border-violet-200 bg-violet-50 text-violet-700"
+                              : "border-accent/30 bg-accent/5 text-accent"
                         }`}
                     >
                       <div className="flex items-center justify-between">
@@ -201,7 +211,7 @@ export default function Dashboard() {
                   ))
                 ) : (
                   <div className="rounded-xl border border-dashed border-border bg-muted/30 p-6 text-sm text-muted-foreground">
-                    Notification summary will appear here.
+                    Notification history will appear here once backend events exist for this patient.
                   </div>
                 )}
               </div>

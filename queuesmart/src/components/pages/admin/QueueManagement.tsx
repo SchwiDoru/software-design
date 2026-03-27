@@ -188,6 +188,13 @@ export default function QueueManagement() {
   }, [currentQueueEntries, selectedQueueId]);
 
   const selectedQueue = queues.find((queue) => queue.id === selectedQueueId);
+  const inProgressCount = useMemo(() => {
+    if (!selectedQueueId) {
+      return 0;
+    }
+
+    return entries.filter((entry) => entry.queueId === selectedQueueId && entry.status === "InProgress").length;
+  }, [entries, selectedQueueId]);
 
   const formatJoinTime = (joinTime: string) => {
     const date = new Date(joinTime);
@@ -451,6 +458,8 @@ export default function QueueManagement() {
                     <span>Priority: {selectedQueue.service?.priority}</span>
                     <span className="hidden md:inline">|</span>
                     <span>{currentQueueEntries.length} waiting</span>
+                    <span className="hidden md:inline">|</span>
+                    <span>{inProgressCount} with doctor</span>
                   </div>
                 </div>
                 <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row">
@@ -476,7 +485,7 @@ export default function QueueManagement() {
                     disabled={currentQueueEntries.length === 0 || isSavingOrder}
                     className="w-full md:w-auto"
                   >
-                    Serve Next Patient
+                    Send Next To Front Desk
                   </Button>
                 </div>
               </div>

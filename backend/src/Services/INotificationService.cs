@@ -9,4 +9,6 @@ public interface INotificationService
     Task CreateQueueJoinedNotification(int queueEntryId);
     Task CreatePatientQueueApprovedNotification(int queueEntryId);
     Task NotifyPatientIfFirstInLine(int queueId);
+    Task CreatePatientFrontDeskNotification(int queueEntryId);
+    Task CreatePatientVisitCompletedNotification(int queueEntryId);
 }
