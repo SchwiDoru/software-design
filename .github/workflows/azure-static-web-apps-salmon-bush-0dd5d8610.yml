@@ -30,7 +30,7 @@ jobs:
           api_location: "" 
           output_location: "dist" 
         env: 
-          VITE_API_URL: "https://your-production-backend-url.com" # <-- Added the closing quote here!
+          VITE_API_URL: "https://software-design-queue-smart.onrender.com"
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
