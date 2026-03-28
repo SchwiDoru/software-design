@@ -5,11 +5,25 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>6cbb3a93-0b6c-4eb3-8f7e-a24eb0969d6f</UserSecretsId>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="tests/**/*.cs" />
+    <Compile Remove="Backend.Tests/**/*.cs" />
+    <None Remove="tests/**/*.cs" />
+    <None Remove="Backend.Tests/**/*.cs" />
+    <Content Remove="tests/**/*" />
+    <Content Remove="Backend.Tests/**/*" />
+    <EmbeddedResource Remove="tests/**/*" />
+    <EmbeddedResource Remove="Backend.Tests/**/*" />
   </ItemGroup>
 </Project>

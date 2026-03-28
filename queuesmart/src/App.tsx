@@ -4,7 +4,9 @@ import JoinQueue from "./components/pages/JoinQueue"
 import StatusQueue from "./components/pages/StatusQueue"
 import Dashboard from "./components/pages/Dashboard"
 import AdminDashboard from "./components/pages/admin/AdminDashboard"
+import PendingQueueEntries from "./components/pages/admin/PendingQueueEntries"
 import QueueManagement from "./components/pages/admin/QueueManagement"
+import DoctorQueue from "./components/pages/admin/DoctorQueue"
 import History from "./components/pages/History"
 import HistoryDetail from "./components/pages/HistoryDetail"
 import PatientDirectory from "./components/pages/admin/PatientDirectory"
@@ -17,18 +19,29 @@ import ForgotPassword from "./components/pages/ForgotPassword"
 import StaffForgotPassword from "./components/pages/StaffForgotPassword"
 import UserUpdatePassword from "./components/pages/UserUpdatePassword"
 import StaffUpdatePassword from "./components/pages/StaffUpdatePassword"
+import UserRegister from "./components/pages/UserRegister"
+import ProtectedRoute from "./components/auth/ProtectedRoute"
+import GuestRoute from "./components/auth/GuestRoute"
 
 function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
-      <Route path="/join" element={<JoinQueue />} />
-      <Route path="/status" element={<StatusQueue/>}/>
-      <Route path="/dashboard" element={<Dashboard />} />
+      
+      <Route element={<ProtectedRoute allowedRoles={["Patient"]} />}>
+        <Route path="/join" element={<JoinQueue />} />
+        <Route path="/status" element={<StatusQueue/>}/>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/history" element={<History />} />
+        <Route path="/history/:id" element={<HistoryDetail />} />
+      </Route>
       
       {/* Auth Routes */}
-      <Route path="/login" element={<UserLogin />} />
-      <Route path="/staff-login" element={<StaffLogin />} />
+      <Route element={<GuestRoute />}>
+        <Route path="/login" element={<UserLogin />} />
+        <Route path="/register" element={<UserRegister />} />
+        <Route path="/staff-login" element={<StaffLogin />} />
+      </Route>
       <Route path="/forgot-email" element={<ForgotEmail />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/staff-forgot-password" element={<StaffForgotPassword />} />
@@ -36,14 +49,15 @@ function App() {
       <Route path="/staff/update-password" element={<StaffUpdatePassword />} />
 
       {/* Admin Routes */}
-      <Route path="/admin" element={<AdminDashboard />} />
-      <Route path="/admin/queue" element={<QueueManagement />} />
-      <Route path="/admin/patients" element={<PatientDirectory />} />
-      <Route path="/admin/patients/:id" element={<PatientDetail />} />
+      <Route element={<ProtectedRoute allowedRoles={["Admin", "Staff"]} />}>
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/queue" element={<QueueManagement />} />
+        <Route path="/admin/doctor-queue" element={<DoctorQueue />} />
+        <Route path="/admin/pending" element={<PendingQueueEntries />} />
+        <Route path="/admin/patients" element={<PatientDirectory />} />
+        <Route path="/admin/patients/:id" element={<PatientDetail />} />
+      </Route>
       
-      {/* History Routes */}
-      <Route path="/history" element={<History />} />
-      <Route path="/history/:id" element={<HistoryDetail />} />
     </Routes>
   )
 }

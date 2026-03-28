@@ -1,172 +1,139 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import Navbar from "../Navbar";
-import type { Queue, QueueEntry, User } from "../../types";
-import { readQueueEntries, readQueues, subscribeQueueStore } from "../../data/queueStore";
+import NotificationToastStack from "../ui/NotificationToastStack";
+import { estimateWaitTime, getActiveQueueEntry } from "../../services/queueEntry";
+import { useNotificationFeed } from "../../hooks/useNotificationFeed";
+import { useAuth } from "../auth/AuthProvider";
+import type { NotificationEvent, QueueEntry } from "../../types";
 
-type NotificationTone = "info" | "alert" | "success";
+type ActionMessage = { type: "success" | "error"; text: string };
 
-interface PatientNotification {
-  id: string;
-  tone: NotificationTone;
-  title: string;
-  detail: string;
-  createdAt: string;
-}
-
-type PatientStatus = "Waiting" | "Next" | "Ready" | "Served";
-
-const nowLabel = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const extractApiErrorMessage = async (response: Response, fallbackMessage: string) => {
+  const payload = await response.json().catch(() => null) as { error?: string; message?: string } | null;
+  if (payload && payload.error && payload.error.trim().length > 0) return payload.error;
+  if (payload && payload.message && payload.message.trim().length > 0) return payload.message;
+  return fallbackMessage;
+};
 
 export default function Dashboard() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [queues, setQueues] = useState<Queue[]>(readQueues);
-  const [entries, setEntries] = useState<QueueEntry[]>(readQueueEntries);
-  const [patientId, setPatientId] = useState<number | null>(null);
-  const [manualStatus, setManualStatus] = useState<PatientStatus | null>(null);
-  const [isNextPopupOpen, setIsNextPopupOpen] = useState(false);
-  const [notifications, setNotifications] = useState<PatientNotification[]>([]);
-  const previousPositionRef = useRef<number | null>(null);
-  const hadEntryRef = useRef(false);
+  const { user: authenticatedUser } = useAuth();
+  const [activeEntry, setActiveEntry] = useState<QueueEntry | null>(null);
+  const [estimatedMinutes, setEstimatedMinutes] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [actionMessage, setActionMessage] = useState<ActionMessage | null>(null);
+  const [isLeavingQueue, setIsLeavingQueue] = useState(false);
+  const { notifications, recentNotifications, dismissNotification } = useNotificationFeed(authenticatedUser);
 
   useEffect(() => {
-    return subscribeQueueStore(() => {
-      setQueues(readQueues());
-      setEntries(readQueueEntries());
-    });
-  }, []);
-
-  const waitingEntries = useMemo(() => {
-    return entries.filter((entry) => entry.status === "waiting").sort((a, b) => a.position - b.position);
-  }, [entries]);
-
-  const patients = useMemo<User[]>(() => {
-    const patientsMap = new Map<number, User>();
-    waitingEntries.forEach((entry) => {
-      if (entry.user && !patientsMap.has(entry.userId)) {
-        patientsMap.set(entry.userId, entry.user);
-      }
-    });
-    return Array.from(patientsMap.values());
-  }, [waitingEntries]);
-
-  useEffect(() => {
-    const idParam = searchParams.get("userId");
-    if (idParam) {
-      setPatientId(Number(idParam));
+    if (!authenticatedUser) {
       return;
     }
 
-    if (!idParam && patients.length > 0 && patientId === null) {
-      setPatientId(patients[0].id);
-      setSearchParams({ userId: patients[0].id.toString() });
-    }
-  }, [patientId, patients, searchParams, setSearchParams]);
+    let isCancelled = false;
 
-  const currentEntry = waitingEntries.find((entry) => entry.userId === patientId);
-  const currentPatient = patients.find((patient) => patient.id === patientId);
-  const currentQueue = queues.find((queue) => queue.id === currentEntry?.queueId);
+    const loadDashboard = async () => {
+      try {
+        const nextEntry = await getActiveQueueEntry(authenticatedUser.email);
+        if (isCancelled) {
+          return;
+        }
 
-  const queueEntries = useMemo(() => {
-    if (!currentEntry) {
-      return [];
-    }
-    return waitingEntries
-      .filter((entry) => entry.queueId === currentEntry.queueId)
-      .sort((a, b) => a.position - b.position);
-  }, [currentEntry, waitingEntries]);
+        setActiveEntry(nextEntry);
 
-  const queuePosition = currentEntry?.position ?? null;
-  const estimatedMinutes = currentEntry
-    ? (currentEntry.position - 1) * (currentQueue?.service?.durationMinutes ?? 15)
-    : 0;
-  const openQueues = queues.filter((queue) => queue.status === "open");
+        if (!nextEntry) {
+          setEstimatedMinutes(0);
+          return;
+        }
 
-  const derivedStatus: PatientStatus = !currentEntry
-    ? "Served"
-    : manualStatus === "Ready"
-      ? "Ready"
-      : currentEntry.position === 1
-        ? "Next"
-        : "Waiting";
-
-  const addNotification = (tone: NotificationTone, title: string, detail: string) => {
-    const item: PatientNotification = {
-      id: `${Date.now()}-${Math.random()}`,
-      tone,
-      title,
-      detail,
-      createdAt: nowLabel()
+        const waitInfo = await estimateWaitTime(nextEntry.queueId, authenticatedUser.email);
+        if (!isCancelled) {
+          setEstimatedMinutes(waitInfo.estimatedWaitTimeMinutes);
+        }
+      } catch (error) {
+        console.warn("Failed to load patient dashboard", error);
+        if (!isCancelled) {
+          setActiveEntry(null);
+          setEstimatedMinutes(0);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      }
     };
 
-    setNotifications((previous) => [item, ...previous].slice(0, 6));
-  };
+    void loadDashboard();
+    const timer = window.setInterval(() => {
+      void loadDashboard();
+    }, 10000);
 
-  useEffect(() => {
-    if (!currentPatient) {
-      return;
-    }
-    setNotifications([
-      {
-        id: `joined-${currentPatient.id}`,
-        tone: "info",
-        title: "Checked In",
-        detail: `${currentPatient.name}, your dashboard is active and tracking your queue.`,
-        createdAt: nowLabel()
-      }
-    ]);
-    previousPositionRef.current = null;
-    hadEntryRef.current = false;
-    setManualStatus(null);
-  }, [currentPatient]);
+    return () => {
+      isCancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [authenticatedUser]);
 
-  useEffect(() => {
-    if (!currentEntry) {
-      if (hadEntryRef.current) {
-        addNotification("success", "Visit Started", "You have been called and removed from the waiting queue.");
-      }
-      hadEntryRef.current = false;
-      previousPositionRef.current = null;
-      setIsNextPopupOpen(false);
-      return;
-    }
+  const handleLeaveQueue = async () => {
+    if (!activeEntry) return;
 
-    hadEntryRef.current = true;
+    setIsLeavingQueue(true);
+    setActionMessage(null);
 
-    if (previousPositionRef.current !== null && currentEntry.position < previousPositionRef.current) {
-      addNotification(
-        "info",
-        "Position Updated",
-        `Good news. You moved from #${previousPositionRef.current} to #${currentEntry.position}.`
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/queueentry/${activeEntry.id}/status`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ status: "Cancelled" })
+        }
       );
+
+      if (!response.ok) {
+        const errorMessage = await extractApiErrorMessage(
+          response,
+          "Failed to leave queue"
+        );
+        throw new Error(errorMessage);
+      }
+
+      setActiveEntry(null);
+      setEstimatedMinutes(0);
+      setActionMessage({
+        type: "success",
+        text: "You have been removed from the queue"
+      });
+    } catch (error) {
+      console.error("Error leaving queue:", error);
+      setActionMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to leave queue. Please try again."
+      });
+    } finally {
+      setIsLeavingQueue(false);
     }
-
-    if (currentEntry.position === 1) {
-      setIsNextPopupOpen(true);
-      addNotification("alert", "You Are Next", "Please get ready. Staff may call you any moment.");
-    }
-
-    previousPositionRef.current = currentEntry.position;
-  }, [currentEntry]);
-
-  const handleAcknowledgeNext = () => {
-    setManualStatus("Ready");
-    setIsNextPopupOpen(false);
-    addNotification("success", "Status Updated", "You are marked as ready.");
   };
 
-  const notificationToneStyles: Record<NotificationTone, string> = {
-    info: "border-accent/30 bg-accent/5 text-accent",
-    alert: "border-amber-200 bg-amber-50 text-amber-700",
-    success: "border-emerald-200 bg-emerald-50 text-emerald-700"
-  };
+  const positionLabel = !activeEntry
+    ? "--"
+    : activeEntry.status === "Pending"
+      ? "Pending"
+      : activeEntry.status === "InProgress"
+        ? "Front Desk"
+      : `#${(activeEntry.position ?? 0) + 1}`;
 
-  const statusStyles: Record<PatientStatus, string> = {
-    Waiting: "bg-blue-50 text-blue-700",
-    Next: "bg-amber-50 text-amber-700",
-    Ready: "bg-emerald-50 text-emerald-700",
-    Served: "bg-muted text-muted-foreground"
-  };
+  const statusTone = activeEntry?.status === "Waiting"
+    ? "bg-blue-50 text-blue-700"
+    : activeEntry?.status === "Pending"
+      ? "bg-amber-50 text-amber-700"
+      : activeEntry?.status === "InProgress"
+        ? "bg-emerald-50 text-emerald-700"
+        : "bg-muted text-muted-foreground";
+
+  const notificationSummary: NotificationEvent[] = recentNotifications.slice(0, 6);
 
   return (
     <div className="min-h-screen bg-background">
@@ -184,55 +151,50 @@ export default function Dashboard() {
                 Live queue updates for <span className="gradient-text">your visit</span>
               </h1>
               <p className="mt-2 text-muted-foreground">
-                Track queue position, service status, and real-time clinic notifications.
+                Signed in as {authenticatedUser?.name}. Your queue details now come from the backend instead of the demo selector.
               </p>
             </div>
-
-            <div className="w-full max-w-xs">
-              <label className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                Demo Patient
-              </label>
-              <select
-                className="input-field"
-                value={patientId ?? ""}
-                onChange={(event) => {
-                  const selected = Number(event.target.value);
-                  setPatientId(selected);
-                  setSearchParams({ userId: selected.toString() });
-                }}
-              >
-                {patients.map((patient) => (
-                  <option key={patient.id} value={patient.id}>
-                    {patient.name}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
-
+          {actionMessage ? (
+            <div className={`mb-8 rounded-2xl border px-4 py-3 text-sm ${
+              actionMessage.type === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-rose-200 bg-rose-50 text-rose-700"
+            }`}>
+              {actionMessage.text}
+            </div>
+          ) : null}
           <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <article className="surface-card p-5">
               <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Queue Position</p>
-              <p className="mt-3 text-4xl font-semibold text-foreground">{queuePosition ?? "--"}</p>
+              <p className="mt-3 text-4xl font-semibold text-foreground">{isLoading ? "--" : positionLabel}</p>
             </article>
 
             <article className="surface-card p-5">
               <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Current Status</p>
               <div className="mt-3">
-                <span className={`inline-flex rounded-full px-3 py-1 text-sm font-medium ${statusStyles[derivedStatus]}`}>
-                  {derivedStatus}
+                <span className={`inline-flex rounded-full px-3 py-1 text-sm font-medium ${statusTone}`}>
+                  {activeEntry?.status ?? "No Active Queue"}
                 </span>
               </div>
             </article>
 
             <article className="surface-card p-5">
               <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Estimated Wait</p>
-              <p className="mt-3 text-4xl font-semibold text-foreground">{estimatedMinutes}m</p>
+              <p className="mt-3 text-4xl font-semibold text-foreground">
+                {activeEntry?.status === "Pending"
+                  ? "--"
+                  : activeEntry?.status === "InProgress"
+                    ? "Now"
+                    : `${estimatedMinutes}m`}
+              </p>
             </article>
 
             <article className="surface-card p-5">
-              <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Active Services</p>
-              <p className="mt-3 text-4xl font-semibold text-foreground">{openQueues.length}</p>
+              <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Current Service</p>
+              <p className="mt-3 text-xl font-semibold text-foreground">
+                {activeEntry?.queue?.service?.name ?? "Not assigned"}
+              </p>
             </article>
           </section>
 
@@ -241,66 +203,85 @@ export default function Dashboard() {
               <div className="mb-5 flex items-center justify-between">
                 <h2 className="text-3xl text-foreground">Queue Details</h2>
                 <span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-mono uppercase tracking-[0.1em] text-accent">
-                  {currentQueue?.service?.name ?? "No active queue"}
+                  {activeEntry?.queue?.service?.name ?? "No active queue"}
                 </span>
               </div>
 
-              {queueEntries.length > 0 ? (
-                <ul className="space-y-3">
-                  {queueEntries.slice(0, 5).map((entry) => (
-                    <li
-                      key={entry.userId}
-                      className={`flex items-center justify-between rounded-xl border p-3 ${entry.userId === patientId ? "border-accent/30 bg-accent/5" : "border-border bg-card"
-                        }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-semibold text-foreground">
-                          {entry.position}
-                        </span>
-                        <div>
-                          <p className="font-medium text-foreground">{entry.user?.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Joined{" "}
-                            {new Date(entry.joinTime).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit"
-                            })}
-                          </p>
-                        </div>
-                      </div>
-                      {entry.userId === patientId ? (
-                        <span className="rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-white">You</span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
+              {activeEntry ? (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-border bg-card p-5">
+                    <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Patient</p>
+                    <h3 className="mt-3 text-2xl font-semibold text-foreground">{authenticatedUser?.name}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">{authenticatedUser?.email}</p>
+                  </div>
+
+                  <div className="rounded-2xl border border-border bg-card p-5">
+                    <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Visit Status</p>
+                    <p className="mt-3 text-lg text-foreground">
+                      {activeEntry.status === "Pending"
+                        ? "Your request is waiting for staff review."
+                        : activeEntry.status === "Waiting"
+                          ? `You are currently #${(activeEntry.position ?? 0) + 1} in line.`
+                          : "Go to the front desk. Staff is preparing your visit with the doctor."}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleLeaveQueue}
+                    disabled={isLeavingQueue}
+                    className="w-full rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLeavingQueue ? "Removing from queue..." : "Leave Queue"}
+                  </button>
+                </div>
               ) : (
                 <div className="rounded-xl border border-dashed border-border bg-muted/30 p-8 text-center text-muted-foreground">
-                  No waiting entry found for this patient.
+                  <p className="text-lg font-medium text-foreground">No active queue entry</p>
+                  <p className="mt-2 text-sm">Join a service when you are ready and we will track it here.</p>
+                  <Link
+                    to="/join"
+                    className="mt-5 inline-flex h-11 items-center justify-center rounded-xl bg-gradient-to-r from-accent to-accent-secondary px-5 text-sm font-medium text-white"
+                  >
+                    Join Queue
+                  </Link>
                 </div>
               )}
             </div>
 
             <div className="surface-card p-6">
-              <h2 className="text-3xl text-foreground">Notifications</h2>
-              <p className="mt-2 text-sm text-muted-foreground">Overview of current queue status and patient alerts.</p>
+              <h2 className="text-3xl text-foreground">Notification History</h2>
+              <p className="mt-2 text-sm text-muted-foreground">Recent patient alerts stored by the backend queue handler.</p>
               <div className="mt-5 space-y-3">
-                {notifications.length > 0 ? (
-                  notifications.map((notification) => (
+                {notificationSummary.length > 0 ? (
+                  notificationSummary.map((notification) => (
                     <article
                       key={notification.id}
-                      className={`rounded-xl border p-4 ${notificationToneStyles[notification.tone]}`}
+                      className={`rounded-xl border p-4 ${notification.type === "FirstInLine"
+                        ? "border-amber-200 bg-amber-50 text-amber-700"
+                        : notification.type === "QueueApproved"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : notification.type === "FrontDesk"
+                            ? "border-cyan-200 bg-cyan-50 text-cyan-700"
+                            : notification.type === "VisitCompleted"
+                              ? "border-violet-200 bg-violet-50 text-violet-700"
+                              : "border-accent/30 bg-accent/5 text-accent"
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <h3 className="font-semibold">{notification.title}</h3>
-                        <span className="font-mono text-xs uppercase tracking-[0.12em]">{notification.createdAt}</span>
+                        <span className="font-mono text-xs uppercase tracking-[0.12em]">
+                          {new Date(notification.createdAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit"
+                          })}
+                        </span>
                       </div>
-                      <p className="mt-2 text-sm">{notification.detail}</p>
+                      <p className="mt-2 text-sm">{notification.message}</p>
                     </article>
                   ))
                 ) : (
                   <div className="rounded-xl border border-dashed border-border bg-muted/30 p-6 text-sm text-muted-foreground">
-                    Notification summary will appear here.
+                    Notification history will appear here once backend events exist for this patient.
                   </div>
                 )}
               </div>
@@ -311,47 +292,22 @@ export default function Dashboard() {
             <div className="grid gap-4 md:grid-cols-3 md:items-center">
               <div>
                 <p className="font-mono text-xs uppercase tracking-[0.15em] text-background/70">Current service</p>
-                <p className="mt-2 text-2xl">{currentQueue?.service?.name ?? "Not Assigned"}</p>
+                <p className="mt-2 text-2xl">{activeEntry?.queue?.service?.name ?? "Not Assigned"}</p>
               </div>
               <div>
                 <p className="font-mono text-xs uppercase tracking-[0.15em] text-background/70">Duration</p>
-                <p className="mt-2 text-2xl">{currentQueue?.service?.durationMinutes ?? 0} min</p>
+                <p className="mt-2 text-2xl">{activeEntry?.queue?.service?.duration ?? 0} min</p>
               </div>
               <div>
                 <p className="font-mono text-xs uppercase tracking-[0.15em] text-background/70">Queue status</p>
-                <p className="mt-2 text-2xl capitalize">{currentQueue?.status ?? "waiting"}</p>
+                <p className="mt-2 text-2xl capitalize">{activeEntry?.queue?.status ?? "waiting"}</p>
               </div>
             </div>
           </section>
         </div>
       </main>
 
-      {isNextPopupOpen && derivedStatus !== "Ready" && (
-        <div className="fixed inset-x-4 bottom-4 z-50 rounded-2xl border border-accent/30 bg-card p-5 shadow-[0_20px_25px_rgba(15,23,42,0.1)] sm:inset-x-auto sm:right-6 sm:w-[420px]">
-          <div className="mb-3 flex items-center gap-3">
-            <span className="section-label-dot" />
-            <p className="font-mono text-xs uppercase tracking-[0.15em] text-accent">Queue Alert</p>
-          </div>
-          <h3 className="text-2xl text-foreground">You are next in line</h3>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Position #{queuePosition}. Please stay ready for your call.
-          </p>
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-            <button
-              onClick={handleAcknowledgeNext}
-              className="inline-flex h-11 items-center justify-center rounded-xl bg-gradient-to-r from-accent to-accent-secondary px-5 text-sm font-medium text-white"
-            >
-              I am ready
-            </button>
-            <button
-              onClick={() => setIsNextPopupOpen(false)}
-              className="inline-flex h-11 items-center justify-center rounded-xl border border-border bg-white px-5 text-sm font-medium text-foreground"
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
+      <NotificationToastStack notifications={notifications} onDismiss={dismissNotification} />
     </div>
   );
 }
