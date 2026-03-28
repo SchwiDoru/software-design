@@ -9,10 +9,12 @@ namespace Backend.Services;
 public class QueueEntryServices : IQueueEntryServices
 {
     private readonly AppDbContext _dbContext;
+    private readonly INotificationService _notificationService;
 
-    public QueueEntryServices(AppDbContext dbContext)
+    public QueueEntryServices(AppDbContext dbContext, INotificationService notificationService)
     {
         _dbContext = dbContext;
+        _notificationService = notificationService;
     }
 
     private async Task EnsureQueueIsOpen(int queueId)
@@ -24,6 +26,24 @@ public class QueueEntryServices : IQueueEntryServices
         if (isQueueClosed)
         {
             throw new InvalidOperationException("Queue is currently closed");
+        }
+    }
+
+    private async Task EnsureNoOtherInProgressEntryInQueue(int queueId, int? excludedQueueEntryId = null)
+    {
+        if (queueId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(queueId), "Queue ID must be greater than 0");
+        }
+
+        var hasAnotherInProgressEntry = await _dbContext.QueueEntries.AnyAsync(queueEntry =>
+            queueEntry.QueueId == queueId &&
+            queueEntry.Status == QueueEntryStatus.InProgress &&
+            (!excludedQueueEntryId.HasValue || queueEntry.Id != excludedQueueEntryId.Value));
+
+        if (hasAnotherInProgressEntry)
+        {
+            throw new InvalidOperationException($"Queue with ID {queueId} already has an entry in progress");
         }
     }
 
@@ -53,7 +73,7 @@ public class QueueEntryServices : IQueueEntryServices
             throw new ArgumentException("Error queue entry user id (email) is required", nameof(queueEntry.UserId));
         }
 
-        var normalizedUserId = queueEntry.UserId.Trim();
+        var normalizedUserId = queueEntry.UserId.Trim().ToLowerInvariant();
         var joinTime = queueEntry.JoinTime;
 
         try
@@ -75,7 +95,7 @@ public class QueueEntryServices : IQueueEntryServices
 
     private async Task RecalculateQueuePositions(int queueId, string userId, int? previousPosition, int? newPosition)
     {
-        var normalizedUserId = userId.Trim();
+        var normalizedUserId = userId.Trim().ToLowerInvariant();
 
         if (newPosition.HasValue && !previousPosition.HasValue)
         {
@@ -164,6 +184,7 @@ public class QueueEntryServices : IQueueEntryServices
         {
             return await _dbContext.QueueEntries
                                     .Include(qe => qe.Queue)
+                                        .ThenInclude(queue => queue!.Service)
                                     .Include(qe => qe.User)
                                     .OrderBy(qe => qe.Position)
                                     .ToListAsync();
@@ -172,6 +193,28 @@ public class QueueEntryServices : IQueueEntryServices
         {
             throw new Exception("Unexpected error getting queue entries: ", err);
         }
+    }
+
+    public async Task<QueueEntry?> GetActiveQueueEntry(string userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("Queue entry user id (email) is required", nameof(userId));
+        }
+
+        var normalizedUserId = userId.Trim().ToLowerInvariant();
+
+        return await _dbContext.QueueEntries
+            .Include(qe => qe.Queue!)
+                .ThenInclude(queue => queue.Service)
+            .Include(qe => qe.User)
+            .Where(qe =>
+                qe.UserId == normalizedUserId &&
+                (qe.Status == QueueEntryStatus.Pending ||
+                 qe.Status == QueueEntryStatus.Waiting ||
+                 qe.Status == QueueEntryStatus.InProgress))
+            .OrderByDescending(qe => qe.JoinTime)
+            .FirstOrDefaultAsync();
     }
 
      public async Task<QueueEntry> CreateQueueEntry(QueueEntry? queueEntry)
@@ -198,7 +241,7 @@ public class QueueEntryServices : IQueueEntryServices
         {
             throw new ArgumentException("Error queue entry user id (email) is required", nameof(queueEntry.UserId));
         }
-        var normalizedUserId = queueEntry.UserId.Trim();
+        var normalizedUserId = queueEntry.UserId.Trim().ToLowerInvariant();
         queueEntry.UserId = normalizedUserId;
 
         try
@@ -210,6 +253,11 @@ public class QueueEntryServices : IQueueEntryServices
             }
 
             await EnsureQueueIsOpen(queueEntry.QueueId);
+
+            if (queueEntry.Status == QueueEntryStatus.InProgress)
+            {
+                await EnsureNoOtherInProgressEntryInQueue(queueEntry.QueueId);
+            }
 
             var userExists = await _dbContext.UserProfiles.AnyAsync(u => u.Email == normalizedUserId);
             if (!userExists)
@@ -229,6 +277,7 @@ public class QueueEntryServices : IQueueEntryServices
 
             await _dbContext.QueueEntries.AddAsync(queueEntry);
             await _dbContext.SaveChangesAsync();
+            await _notificationService.CreateQueueJoinedNotification(queueEntry.Id);
             return queueEntry;
         }
         catch (KeyNotFoundException)
@@ -273,7 +322,7 @@ public class QueueEntryServices : IQueueEntryServices
                 throw new KeyNotFoundException($"Queue entry with ID {id} was not found");
             }
 
-            var normalizedUserId = existingQueueEntry.UserId.Trim();
+            var normalizedUserId = existingQueueEntry.UserId.Trim().ToLowerInvariant();
 
             if (existingQueueEntry.Status != QueueEntryStatus.Waiting || existingQueueEntry.Position == null)
             {
@@ -293,6 +342,7 @@ public class QueueEntryServices : IQueueEntryServices
 
             await RecalculateQueuePositions(existingQueueEntry.QueueId, normalizedUserId, previousPosition, existingQueueEntry.Position);
             await _dbContext.SaveChangesAsync();
+            await _notificationService.NotifyPatientIfFirstInLine(existingQueueEntry.QueueId);
 
             return existingQueueEntry;
         }
@@ -335,14 +385,24 @@ public class QueueEntryServices : IQueueEntryServices
                 throw new KeyNotFoundException($"Queue entry with ID {id} was not found");
             }
 
-            var normalizedUserId = existingQueueEntry.UserId.Trim();
+            var normalizedUserId = existingQueueEntry.UserId.Trim().ToLowerInvariant();
 
             var previousStatus = existingQueueEntry.Status;
             var previousPosition = existingQueueEntry.Position;
 
             if (previousStatus != status)
             {
-                await EnsureQueueIsOpen(existingQueueEntry.QueueId);
+                var isCancelOrRemove = status == QueueEntryStatus.Cancelled || status == QueueEntryStatus.Removed;
+                
+                if (!isCancelOrRemove)
+                {
+                    await EnsureQueueIsOpen(existingQueueEntry.QueueId);
+                }
+
+                if (status == QueueEntryStatus.InProgress)
+                {
+                    await EnsureNoOtherInProgressEntryInQueue(existingQueueEntry.QueueId, existingQueueEntry.Id);
+                }
             }
 
             existingQueueEntry.Status = status;
@@ -372,6 +432,15 @@ public class QueueEntryServices : IQueueEntryServices
 
             await RecalculateQueuePositions(existingQueueEntry.QueueId, normalizedUserId, previousPosition, updatedPosition);
             await _dbContext.SaveChangesAsync();
+            if (previousStatus == QueueEntryStatus.Pending && status == QueueEntryStatus.Waiting)
+            {
+                await _notificationService.CreatePatientQueueApprovedNotification(existingQueueEntry.Id);
+            }
+            if (previousStatus != QueueEntryStatus.InProgress && status == QueueEntryStatus.InProgress)
+            {
+                await _notificationService.CreatePatientFrontDeskNotification(existingQueueEntry.Id);
+            }
+            await _notificationService.NotifyPatientIfFirstInLine(existingQueueEntry.QueueId);
 
             return existingQueueEntry;
         }
@@ -426,7 +495,7 @@ public class QueueEntryServices : IQueueEntryServices
                 throw new KeyNotFoundException($"Queue entry with ID {id} was not found");
             }
 
-            var normalizedUserId = existingQueueEntry.UserId.Trim();
+            var normalizedUserId = existingQueueEntry.UserId.Trim().ToLowerInvariant();
             existingQueueEntry.UserId = normalizedUserId;
 
             var queueExists = await _dbContext.Queues.AnyAsync(q => q.Id == existingQueueEntry.QueueId);
@@ -477,6 +546,11 @@ public class QueueEntryServices : IQueueEntryServices
 
             await RecalculateQueuePositions(existingQueueEntry.QueueId, normalizedUserId, previousPosition, updatedPosition);
             await _dbContext.SaveChangesAsync();
+            if (previousStatus == QueueEntryStatus.Pending && status == QueueEntryStatus.Waiting)
+            {
+                await _notificationService.CreatePatientQueueApprovedNotification(existingQueueEntry.Id);
+            }
+            await _notificationService.NotifyPatientIfFirstInLine(existingQueueEntry.QueueId);
             return existingQueueEntry;
         }
         catch (KeyNotFoundException)
@@ -508,7 +582,7 @@ public class QueueEntryServices : IQueueEntryServices
             throw new ArgumentException("Queue entry user id (email) is required", nameof(userId));
         }
 
-        var normalizedUserId = userId.Trim();
+        var normalizedUserId = userId.Trim().ToLowerInvariant();
 
         try
         {
@@ -534,6 +608,8 @@ public class QueueEntryServices : IQueueEntryServices
                 await _dbContext.SaveChangesAsync();
             }
 
+            await _notificationService.NotifyPatientIfFirstInLine(queueId);
+
             return true;
         }
         catch (KeyNotFoundException)
@@ -557,13 +633,13 @@ public class QueueEntryServices : IQueueEntryServices
             throw new ArgumentException("Queue entry user id (email) is required", nameof(userId));
         }
 
-        var normalizedUserId = userId.Trim();
+        var normalizedUserId = userId.Trim().ToLowerInvariant();
 
         try
         {
             // Get the queue entry with related queue and service data
             var queueEntry = await _dbContext.QueueEntries
-                .Include(qe => qe.Queue)
+                .Include(qe => qe.Queue!)
                     .ThenInclude(q => q.Service)
                 .FirstOrDefaultAsync(qe => qe.QueueId == queueId && qe.UserId == normalizedUserId);
 
@@ -584,19 +660,46 @@ public class QueueEntryServices : IQueueEntryServices
                 throw new KeyNotFoundException($"Service for queue {queueId} was not found");
             }
 
+            var currentInProgressEntry = await _dbContext.QueueEntries
+                .Where(qe => qe.QueueId == queueId && qe.Status == QueueEntryStatus.InProgress)
+                .OrderBy(qe => qe.JoinTime)
+                .FirstOrDefaultAsync();
+
+            var inProgressElapsedMinutes = 0;
+            var inProgressRemainingMinutes = 0;
+
+            if (currentInProgressEntry != null)
+            {
+                inProgressElapsedMinutes = Math.Max(0, (int)Math.Floor((DateTime.UtcNow - currentInProgressEntry.JoinTime).TotalMinutes));
+                inProgressRemainingMinutes = Math.Max(0, service.Duration - inProgressElapsedMinutes);
+            }
+
             // Calculate wait time based on position and service duration
-            // Formula: Position × Service Duration
+            // Formula when a patient is in progress: Remaining current service + (Position × Service Duration)
+            // Formula otherwise: Position × Service Duration
             int estimatedWaitTimeMinutes = 0;
             string message = string.Empty;
 
             if (queueEntry.Status == QueueEntryStatus.Waiting && queueEntry.Position.HasValue)
             {
-                estimatedWaitTimeMinutes = queueEntry.Position.Value * service.Duration;
-                message = $"You are at position {queueEntry.Position + 1}. Estimated wait time is approximately {estimatedWaitTimeMinutes} minutes.";
+                estimatedWaitTimeMinutes = (queueEntry.Position.Value * service.Duration) + inProgressRemainingMinutes;
+
+                if (currentInProgressEntry != null)
+                {
+                    message = $"You are at position {queueEntry.Position + 1}. Current patient has been in progress for {inProgressElapsedMinutes} minutes. Estimated wait time is approximately {estimatedWaitTimeMinutes} minutes.";
+                }
+                else
+                {
+                    message = $"You are at position {queueEntry.Position + 1}. Estimated wait time is approximately {estimatedWaitTimeMinutes} minutes.";
+                }
             }
             else if (queueEntry.Status == QueueEntryStatus.Pending)
             {
                 message = "Your position has not been assigned yet. Please wait for confirmation.";
+            }
+            else if (queueEntry.Status == QueueEntryStatus.InProgress)
+            {
+                message = $"Your consultation is currently in progress. Elapsed time: {inProgressElapsedMinutes} minutes.";
             }
             else if (queueEntry.Status == QueueEntryStatus.Completed)
             {

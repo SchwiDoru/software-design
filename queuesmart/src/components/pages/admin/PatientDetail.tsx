@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
-import { ChevronLeft, AlertCircle, FastForward, XCircle, User, Phone, Mail, CheckCircle2 } from "lucide-react";
+import { useParams, Link } from "react-router-dom";
+import { ChevronLeft, AlertCircle, FastForward, XCircle, User, Mail, CheckCircle2, Phone } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AdminLayout from "../../admin/AdminLayout";
 import { Button } from "../../ui/Button";
 import { adminOverride } from "../../../data/patientActions";
 import { readQueueEntries, subscribeQueueStore } from "../../../data/queueStore";
+import { getPatientByEmail } from "../../../services/patients";
+import type { PatientProfile } from "../../../types";
 
 const MOCK_HISTORY = [
   {
@@ -25,19 +27,26 @@ const MOCK_HISTORY = [
     status: "Waiting"
   }
 ];
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 export default function PatientDetail() {
   const { id } = useParams();
-  const navigate = useNavigate();
+  const patientEmail = decodeURIComponent(id ?? "");
+  const [patient, setPatient] = useState<PatientProfile | null>(null);
+  const [isLoadingPatient, setIsLoadingPatient] = useState(true);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showPushSuccess, setShowPushSuccess] = useState(false);
   const [showCancelSuccess, setShowCancelSuccess] = useState(false);
 const [entries, setEntries] = useState([
   ...readQueueEntries(),
   { 
+    id: -1,
     userId: id, 
     status: "Waiting", 
     position: 3, 
-    user: { name: "Test Patient", email: "test@example.com" } 
+    queueId: 1,
+    joinTime: new Date().toISOString(),
+    priority: "Low",
+    user: { id: -1, name: "Test Patient", email: "test@example.com", role: "Patient" } 
   }
 ]);
 
@@ -45,11 +54,76 @@ const [entries, setEntries] = useState([
     return subscribeQueueStore(() => setEntries(readQueueEntries()));
   }, []);
 
-  const patientId = id;
-  const currentEntry = entries.find(e => e.userId === patientId);
+  useEffect(() => {
+    let isCancelled = false;
 
-  const triggerAction = (action: 'TOP' | 'EMERGENCY' | 'CANCEL') => {   
-    adminOverride(patientId as any, action);
+    const loadPatient = async () => {
+      try {
+        if (!patientEmail) {
+          if (!isCancelled) {
+            setPatient(null);
+          }
+          return;
+        }
+
+        const nextPatient = await getPatientByEmail(patientEmail);
+        if (!isCancelled) {
+          setPatient(nextPatient);
+        }
+      } catch (error) {
+        console.warn("Failed to load patient detail", error);
+        if (!isCancelled) {
+          setPatient(null);
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingPatient(false);
+        }
+      }
+    };
+
+    void loadPatient();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [patientEmail, showSuccess, showPushSuccess, showCancelSuccess]);
+
+  const patientId = patientEmail;
+  const currentEntry = patient?.currentEntry ?? entries.find(e => e.userId === patientId);
+
+  const triggerAction = async (action: 'TOP' | 'EMERGENCY' | 'CANCEL') => {
+    if (currentEntry) {
+      try {
+        if (action === "TOP") {
+          await fetch(`${API_URL}/queueentry/${currentEntry.id}/position`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ position: 0 })
+          });
+        }
+
+        if (action === "EMERGENCY") {
+          await fetch(`${API_URL}/queueentry/${currentEntry.id}/status`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "InProgress" })
+          });
+        }
+
+        if (action === "CANCEL") {
+          await fetch(`${API_URL}/queueentry/${currentEntry.id}/status`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "Removed" })
+          });
+        }
+      } catch (error) {
+        console.warn("Failed to update patient queue action", error);
+      }
+    } else {
+      adminOverride(patientId as any, action);
+    }
     
     if (action === 'EMERGENCY') {
       setShowSuccess(true);
@@ -72,6 +146,125 @@ const [entries, setEntries] = useState([
     }, 2000);
   }
   };
+
+  if (isLoadingPatient || patient || !patient) {
+    return (
+      <AdminLayout>
+        <AnimatePresence>
+          {showPushSuccess && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex items-center gap-2 text-emerald-500 text-sm"
+            >
+              <CheckCircle2 size={16} /> Patient queue action applied
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="mx-auto w-full max-w-7xl pb-20">
+          <Link
+            to="/admin/patients"
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-accent mb-6 transition-colors"
+          >
+            <ChevronLeft size={16} /> Back to Directory
+          </Link>
+
+          {isLoadingPatient ? (
+            <div className="surface-card p-8 text-muted-foreground">Loading patient details...</div>
+          ) : patient ? (
+            <>
+              <div className="surface-card p-8 mb-8 flex flex-col md:flex-row justify-between gap-6">
+                <div className="flex items-center gap-6">
+                  <div className="w-24 h-24 rounded-2xl bg-accent/10 flex items-center justify-center text-4xl font-bold text-accent">
+                    {patient.name.charAt(0)}
+                  </div>
+                  <div>
+                    <h1 className="text-4xl font-semibold text-foreground">{patient.name}</h1>
+                    <div className="flex flex-wrap gap-4 mt-3 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1"><User size={14}/> {patient.email}</span>
+                      <span className="flex items-center gap-1"><Mail size={14}/> {patient.email}</span>
+                      <span className="flex items-center gap-1"><Phone size={14}/> {patient.phoneNumber || "No phone on file"}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-1 space-y-6">
+                  <div className="surface-card p-6 border-l-4 border-accent">
+                    <h2 className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-4">Live Controls</h2>
+                    {currentEntry && currentEntry.status === "Waiting" ? (
+                      <div className="space-y-3">
+                        <div className="bg-muted/30 rounded-xl p-4 mb-4">
+                          <p className="text-sm text-muted-foreground">Currently Waiting in:</p>
+                          <p className="font-bold text-foreground">Position #{(currentEntry.position ?? 0) + 1}</p>
+                        </div>
+                        <Button variant="primary" className="w-full justify-start gap-3" onClick={() => void triggerAction('TOP')}>
+                          <FastForward size={18} /> Push to Top
+                        </Button>
+                        <Button variant="success" className="w-full justify-start gap-3" onClick={() => void triggerAction('EMERGENCY')}>
+                          <AlertCircle size={18} /> Mark In Progress
+                        </Button>
+                        <Button variant="danger" className="w-full justify-start gap-3" onClick={() => void triggerAction('CANCEL')}>
+                          <XCircle size={18} /> Remove Visit
+                        </Button>
+                      </div>
+                    ) : currentEntry ? (
+                      <div className="p-4 bg-muted rounded-xl text-center text-sm text-muted-foreground">
+                        Patient queue status: <span className="font-medium text-foreground">{currentEntry.status}</span>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-muted rounded-xl text-center text-sm text-muted-foreground">
+                        Patient is not currently in any active queue.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="lg:col-span-2">
+                  <div className="surface-card overflow-hidden">
+                    <div className="p-6 border-b border-border bg-muted/20 flex justify-between items-center">
+                      <h2 className="text-xl font-semibold">Clinical Records</h2>
+                      <span className="text-xs font-mono bg-accent/10 text-accent px-2 py-1 rounded">
+                        {patient.histories.length} Records
+                      </span>
+                    </div>
+                    
+                    <div className="divide-y divide-border">
+                      {patient.histories.length > 0 ? (
+                        patient.histories.map((visit) => (
+                          <div key={visit.historyId} className="p-6 hover:bg-muted/5 transition-colors">
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <p className="font-bold text-lg text-foreground">
+                                  {visit.queueEntry?.queue?.service?.name ?? visit.historyDetails[0]?.serviceType ?? "Clinic Visit"}
+                                </p>
+                                <p className="text-sm text-muted-foreground">{visit.historyDetails[0]?.diagnosis || "No diagnosis recorded"}</p>
+                              </div>
+                              <span className="text-xs font-mono text-muted-foreground">{new Date(visit.date).toLocaleDateString()}</span>
+                            </div>
+                            <p className="text-sm text-muted-foreground leading-relaxed italic border-l-2 border-accent/20 pl-4 py-1 mt-2">
+                              "{visit.historyDetails[0]?.assessment || "No clinical notes recorded."}"
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-8 text-center text-muted-foreground">No visit history recorded for this patient yet.</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="surface-card p-8 text-muted-foreground">Patient details could not be found.</div>
+          )}
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>

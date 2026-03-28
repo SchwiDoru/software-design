@@ -36,6 +36,32 @@ public class QueueEntryController: ControllerBase
         }
     }
 
+    [HttpGet("active")]
+    public async Task<ActionResult<QueueEntry>> GetActiveQueueEntryController([FromQuery] string userId)
+    {
+        try
+        {
+            var queueEntry = await _queueEntryService.GetActiveQueueEntry(userId);
+
+            if (queueEntry == null)
+            {
+                return NoContent();
+            }
+
+            return Ok(queueEntry);
+        }
+        catch (ArgumentException err)
+        {
+            return BadRequest(new { error = err.Message });
+        }
+        catch(Exception err)
+        {
+            Console.WriteLine($"Error in QueueEntryController.GetActiveQueueEntryController: {err.Message}");
+            Console.WriteLine($"Stack Trace: {err.StackTrace}");
+            return StatusCode(500, new { error = "Unexpected error getting active queue entry" });
+        }
+    }
+
     [HttpPost]
     public async Task<ActionResult<QueueEntry>> CreateQueueEntryController(CreateQueueEntryDTO queueEntryDto)
     {

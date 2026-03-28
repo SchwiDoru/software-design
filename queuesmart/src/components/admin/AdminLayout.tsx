@@ -1,5 +1,8 @@
 import { useState } from "react";
 import AdminSidebar from "./AdminSidebar";
+import NotificationToastStack from "../ui/NotificationToastStack";
+import { useNotificationFeed } from "../../hooks/useNotificationFeed";
+import { useAuth } from "../auth/AuthProvider";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -7,6 +10,8 @@ interface AdminLayoutProps {
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { user: authenticatedUser } = useAuth();
+  const { notifications, dismissNotification } = useNotificationFeed(authenticatedUser);
 
   return (
     <div className="min-h-screen bg-background">
@@ -28,6 +33,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
         <div className="px-4 py-6 sm:px-6 md:p-8">{children}</div>
       </main>
+
+      <NotificationToastStack notifications={notifications} onDismiss={dismissNotification} />
     </div>
   );
 }

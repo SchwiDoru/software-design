@@ -17,7 +17,7 @@ export const usePatientSearchStore = create<PatientSearchState>((set) => ({
   searchQuery: "",
   searchType: "name",
   serviceFilter: "any",
-  dateFilter: new Date().toISOString().split('T')[0],
+  dateFilter: "",
   setSearchQuery: (query) => set({ searchQuery: query }),
   setSearchType: (type) => set({ searchType: type }),
   setServiceFilter: (service) => set({ serviceFilter: service }),

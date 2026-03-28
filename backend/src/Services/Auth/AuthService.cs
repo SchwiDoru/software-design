@@ -2,7 +2,10 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Cryptography;
 using System.Text;
 using Backend.Constants;
+using Backend.Data;
 using Backend.DTO.Auth;
+using Backend.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace Backend.Services.Auth;
 
@@ -10,10 +13,12 @@ public class AuthService : IAuthService
 {
     private static readonly EmailAddressAttribute EmailValidator = new();
     private readonly IAuthStore _authStore;
+    private readonly AppDbContext _dbContext;
 
-    public AuthService(IAuthStore authStore)
+    public AuthService(IAuthStore authStore, AppDbContext dbContext)
     {
         _authStore = authStore;
+        _dbContext = dbContext;
     }
 
     public async Task<AuthResponseDTO> Register(RegisterRequestDTO request)
@@ -39,6 +44,24 @@ public class AuthService : IAuthService
             passwordHash: HashPassword(password),
             phone: phone);
 
+        var existingProfile = await _dbContext.UserProfiles.FirstOrDefaultAsync(profile => profile.Email == email);
+        if (existingProfile == null)
+        {
+            _dbContext.UserProfiles.Add(new UserProfile
+            {
+                Name = name,
+                Email = email,
+                PhoneNumber = phone
+            });
+        }
+        else
+        {
+            existingProfile.Name = name;
+            existingProfile.PhoneNumber = phone;
+        }
+
+        await _dbContext.SaveChangesAsync();
+
         return CreateAuthResponse("Registration successful", record);
     }
 
@@ -60,19 +83,41 @@ public class AuthService : IAuthService
         return CreateAuthResponse("Login successful", record);
     }
 
+    public async Task<AuthUserDTO?> GetUserByEmail(string email)
+    {
+        var normalizedEmail = NormalizeEmail(email);
+        if (string.IsNullOrWhiteSpace(normalizedEmail))
+        {
+            return null;
+        }
+
+        var record = await _authStore.GetByEmail(normalizedEmail);
+        if (record == null)
+        {
+            return null;
+        }
+
+        return CreateAuthUser(record);
+    }
+
     private static AuthResponseDTO CreateAuthResponse(string message, AuthUserRecord record)
     {
         return new AuthResponseDTO
         {
             Message = message,
-            User = new AuthUserDTO
-            {
-                Id = record.Credentials.Id,
-                Name = record.Profile.Name,
-                Email = record.Credentials.Email,
-                Role = record.Credentials.Role,
-                Phone = record.Profile.PhoneNumber
-            }
+            User = CreateAuthUser(record)
+        };
+    }
+
+    private static AuthUserDTO CreateAuthUser(AuthUserRecord record)
+    {
+        return new AuthUserDTO
+        {
+            Id = record.Credentials.Id,
+            Name = record.Profile.Name,
+            Email = record.Credentials.Email,
+            Role = record.Credentials.Role,
+            Phone = record.Profile.PhoneNumber
         };
     }
 

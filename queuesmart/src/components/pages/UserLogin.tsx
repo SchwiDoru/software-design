@@ -1,10 +1,12 @@
 import Navbar from "../Navbar"
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { getDefaultRouteForRole, loginUser, saveAuthenticatedUser } from "../../services/auth"
+import { getDefaultRouteForRole } from "../../services/auth"
+import { useAuth } from "../auth/AuthProvider"
 
 function UserLogin() {
   const navigate = useNavigate();
+  const { loginAsPatient } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -16,9 +18,8 @@ function UserLogin() {
     setIsSubmitting(true);
 
     try {
-      const response = await loginUser({ email, password });
-      saveAuthenticatedUser(response);
-      navigate(getDefaultRouteForRole(response.user.role));
+      const user = await loginAsPatient({ email, password });
+      navigate(getDefaultRouteForRole(user.role));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to log in right now.");
     } finally {

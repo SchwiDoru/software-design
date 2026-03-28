@@ -7,6 +7,7 @@ namespace Backend.Services;
 public interface IQueueEntryServices
 {
     Task<List<QueueEntry>> GetQueueEntries();
+    Task<QueueEntry?> GetActiveQueueEntry(string userId);
     Task<QueueEntry> CreateQueueEntry(QueueEntry? queueEntry);
     Task<QueueEntry> UpdateQueueEntryPosition(int id, int position);
     Task<QueueEntry> UpdateQueueEntryStatus(int id, QueueEntryStatus status);

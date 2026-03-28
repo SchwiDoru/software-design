@@ -38,6 +38,65 @@ public class QueueEntryControllerTests
     }
 
     [Fact]
+    public async Task GetActiveQueueEntryController_WhenFound_ReturnsOk()
+    {
+        var queueEntry = new QueueEntry
+        {
+            QueueId = 1,
+            UserId = "test@example.com",
+            Status = QueueEntryStatus.Waiting,
+            Priority = PriorityLevel.Low,
+            JoinTime = DateTime.UtcNow
+        };
+
+        _queueEntryServiceMock
+            .Setup(service => service.GetActiveQueueEntry("test@example.com"))
+            .ReturnsAsync(queueEntry);
+
+        var result = await _controller.GetActiveQueueEntryController("test@example.com");
+
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(queueEntry, okResult.Value);
+    }
+
+    [Fact]
+    public async Task GetActiveQueueEntryController_WhenNotFound_ReturnsNoContent()
+    {
+        _queueEntryServiceMock
+            .Setup(service => service.GetActiveQueueEntry("missing@example.com"))
+            .ReturnsAsync((QueueEntry?)null);
+
+        var result = await _controller.GetActiveQueueEntryController("missing@example.com");
+
+        Assert.IsType<NoContentResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetActiveQueueEntryController_WhenArgumentException_ReturnsBadRequest()
+    {
+        _queueEntryServiceMock
+            .Setup(service => service.GetActiveQueueEntry(""))
+            .ThrowsAsync(new ArgumentException("invalid"));
+
+        var result = await _controller.GetActiveQueueEntryController("");
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetActiveQueueEntryController_WhenUnexpectedException_ReturnsInternalServerError()
+    {
+        _queueEntryServiceMock
+            .Setup(service => service.GetActiveQueueEntry("test@example.com"))
+            .ThrowsAsync(new Exception("boom"));
+
+        var result = await _controller.GetActiveQueueEntryController("test@example.com");
+
+        var objectResult = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(500, objectResult.StatusCode);
+    }
+
+    [Fact]
     public async Task CreateQueueEntryController_ReturnsCreatedAtAction()
     {
         var dto = new CreateQueueEntryDTO
@@ -147,6 +206,34 @@ public class QueueEntryControllerTests
 
         var objectResult = Assert.IsType<ObjectResult>(result.Result);
         Assert.Equal(500, objectResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task JoinQueueController_ForwardsToCreateQueueEntryController()
+    {
+        var dto = new CreateQueueEntryDTO
+        {
+            QueueId = 2,
+            UserId = "joined@example.com",
+            Description = "join"
+        };
+
+        var createdQueueEntry = new QueueEntry
+        {
+            QueueId = 2,
+            UserId = "joined@example.com",
+            Status = QueueEntryStatus.Pending,
+            Priority = PriorityLevel.Low,
+            JoinTime = DateTime.UtcNow
+        };
+
+        _queueEntryServiceMock
+            .Setup(service => service.CreateQueueEntry(It.IsAny<QueueEntry>()))
+            .ReturnsAsync(createdQueueEntry);
+
+        var result = await _controller.JoinQueueController(dto);
+
+        Assert.IsType<CreatedAtActionResult>(result.Result);
     }
 
     [Fact]
@@ -263,6 +350,24 @@ public class QueueEntryControllerTests
         var result = await _controller.UpdateQueueEntryStatusController(1, dto);
 
         Assert.IsType<ConflictObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task UpdateQueueEntryStatusController_WhenQueueAlreadyHasInProgress_ReturnsConflictWithErrorMessage()
+    {
+        var dto = new UpdateQueueEntryStatusDTO { Status = QueueEntryStatus.InProgress };
+
+        _queueEntryServiceMock
+            .Setup(service => service.UpdateQueueEntryStatus(1, dto.Status))
+            .ThrowsAsync(new InvalidOperationException("Queue with ID 1 already has an entry in progress"));
+
+        var result = await _controller.UpdateQueueEntryStatusController(1, dto);
+
+        var conflictResult = Assert.IsType<ConflictObjectResult>(result.Result);
+        Assert.Equal(409, conflictResult.StatusCode);
+
+        var payloadText = conflictResult.Value?.ToString() ?? string.Empty;
+        Assert.Contains("already has an entry in progress", payloadText);
     }
 
     [Fact]
@@ -430,5 +535,151 @@ public class QueueEntryControllerTests
 
         var objectResult = Assert.IsType<ObjectResult>(result.Result);
         Assert.Equal(500, objectResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task LeaveQueueController_WhenDeleted_ReturnsNoContent()
+    {
+        _queueEntryServiceMock
+            .Setup(service => service.DeleteQueueEntry(1, "test@example.com"))
+            .ReturnsAsync(true);
+
+        var result = await _controller.LeaveQueueController(1, "test@example.com");
+
+        Assert.IsType<NoContentResult>(result);
+    }
+
+    [Fact]
+    public async Task LeaveQueueController_WhenServiceReturnsFalse_ReturnsNotFound()
+    {
+        _queueEntryServiceMock
+            .Setup(service => service.DeleteQueueEntry(1, "test@example.com"))
+            .ReturnsAsync(false);
+
+        var result = await _controller.LeaveQueueController(1, "test@example.com");
+
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task LeaveQueueController_WhenArgumentException_ReturnsBadRequest()
+    {
+        _queueEntryServiceMock
+            .Setup(service => service.DeleteQueueEntry(1, ""))
+            .ThrowsAsync(new ArgumentException("invalid"));
+
+        var result = await _controller.LeaveQueueController(1, "");
+
+        Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task EstimateWaitTimeController_WithValidData_ReturnsOk()
+    {
+        var estimated = new EstimatedWaitTimeDTO
+        {
+            QueueId = 1,
+            UserId = "test@example.com",
+            Position = 0,
+            EstimatedWaitTimeMinutes = 15,
+            ServiceDurationMinutes = 15,
+            Message = "ok"
+        };
+
+        _queueEntryServiceMock
+            .Setup(service => service.EstimateWaitTime(1, "test@example.com"))
+            .ReturnsAsync(estimated);
+
+        var result = await _controller.EstimateWaitTimeController(1, "test@example.com");
+
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(estimated, okResult.Value);
+    }
+
+    [Fact]
+    public async Task EstimateWaitTimeController_WhenQueueEntryMissing_ReturnsNotFound()
+    {
+        _queueEntryServiceMock
+            .Setup(service => service.EstimateWaitTime(1, "missing@example.com"))
+            .ThrowsAsync(new KeyNotFoundException("missing"));
+
+        var result = await _controller.EstimateWaitTimeController(1, "missing@example.com");
+
+        Assert.IsType<NotFoundObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task EstimateWaitTimeController_WhenArgumentException_ReturnsBadRequest()
+    {
+        _queueEntryServiceMock
+            .Setup(service => service.EstimateWaitTime(1, ""))
+            .ThrowsAsync(new ArgumentException("invalid"));
+
+        var result = await _controller.EstimateWaitTimeController(1, "");
+
+        Assert.IsType<BadRequestObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task EstimateWaitTimeController_WhenUnexpectedException_ReturnsInternalServerError()
+    {
+        _queueEntryServiceMock
+            .Setup(service => service.EstimateWaitTime(1, "test@example.com"))
+            .ThrowsAsync(new Exception("boom"));
+
+        var result = await _controller.EstimateWaitTimeController(1, "test@example.com");
+
+        var objectResult = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(500, objectResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateQueueEntryStatusController_WhenStatusIsCancelled_SucceedsEvenIfQueueClosed()
+    {
+        var dto = new UpdateQueueEntryStatusDTO { Status = QueueEntryStatus.Cancelled };
+
+        var cancelledEntry = new QueueEntry
+        {
+            QueueId = 1,
+            UserId = "cancel@example.com",
+            Status = QueueEntryStatus.Cancelled,
+            Priority = PriorityLevel.Low,
+            Position = null
+        };
+
+        _queueEntryServiceMock
+            .Setup(service => service.UpdateQueueEntryStatus(1, QueueEntryStatus.Cancelled))
+            .ReturnsAsync(cancelledEntry);
+
+        var result = await _controller.UpdateQueueEntryStatusController(1, dto);
+
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(cancelledEntry, okResult.Value);
+        Assert.Equal(QueueEntryStatus.Cancelled, ((QueueEntry)okResult.Value).Status);
+    }
+
+    [Fact]
+    public async Task UpdateQueueEntryStatusController_WhenStatusIsRemoved_SucceedsEvenIfQueueClosed()
+    {
+        var dto = new UpdateQueueEntryStatusDTO { Status = QueueEntryStatus.Removed };
+
+        var removedEntry = new QueueEntry
+        {
+            QueueId = 1,
+            UserId = "remove@example.com",
+            Status = QueueEntryStatus.Removed,
+            Priority = PriorityLevel.Low,
+            Position = null
+        };
+
+        _queueEntryServiceMock
+            .Setup(service => service.UpdateQueueEntryStatus(1, QueueEntryStatus.Removed))
+            .ReturnsAsync(removedEntry);
+
+        var result = await _controller.UpdateQueueEntryStatusController(1, dto);
+
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal(removedEntry, okResult.Value);
+        Assert.Equal(QueueEntryStatus.Removed, ((QueueEntry)okResult.Value).Status);
     }
 }

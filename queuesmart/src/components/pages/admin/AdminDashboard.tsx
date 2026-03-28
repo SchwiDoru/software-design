@@ -6,6 +6,15 @@ import { Button } from "../../ui/Button";
 import { ServiceFormModal } from "../../admin/ServiceFormModal";
 import type { Queue, QueueEntry, QueueStatus, Service } from "../../../types";
 
+type ActionMessage = { type: "success" | "error"; text: string };
+
+const extractApiErrorMessage = async (response: Response, fallbackMessage: string) => {
+  const payload = await response.json().catch(() => null) as { error?: string; message?: string } | null;
+  if (payload && payload.error && payload.error.trim().length > 0) return payload.error;
+  if (payload && payload.message && payload.message.trim().length > 0) return payload.message;
+  return fallbackMessage;
+};
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [queues, setQueues] = useState<Queue[]>([]);
@@ -15,14 +24,19 @@ export default function AdminDashboard() {
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [pendingQueueStatuses, setPendingQueueStatuses] = useState<Record<number, QueueStatus>>({});
   const [isApplyingQueueStatus, setIsApplyingQueueStatus] = useState(false);
+  const [actionMessage, setActionMessage] = useState<ActionMessage | null>(null);
 
   useEffect(() => {
+    let isCancelled = false;
+
     const fetchQueues = async () => {
       try {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/queue`);
 
         if (response.status === 204) {
-          setQueues([]);
+          if (!isCancelled) {
+            setQueues([]);
+          }
           return;
         }
 
@@ -31,17 +45,25 @@ export default function AdminDashboard() {
         }
         
         const data: Queue[] = await response.json();
-        setQueues(data);
-        setSavedQueueStatuses(
-          data.reduce<Record<number, QueueStatus>>((statuses, queue) => {
-            statuses[queue.id] = queue.status;
-            return statuses;
-          }, {})
-        );
+        if (!isCancelled) {
+          setQueues(data);
+          setSavedQueueStatuses(
+            data.reduce<Record<number, QueueStatus>>((statuses, queue) => {
+              statuses[queue.id] = queue.status;
+              return statuses;
+            }, {})
+          );
+        }
       } catch (error) {
         console.error("Error fetching queues:", error);
-        setQueues([]);
-        setSavedQueueStatuses({});
+        if (!isCancelled) {
+          setActionMessage({
+            type: "error",
+            text: "Unable to load queues right now."
+          });
+          setQueues([]);
+          setSavedQueueStatuses({});
+        }
       }
     };
     const fetchQueueEntries = async () => {
@@ -49,7 +71,9 @@ export default function AdminDashboard() {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/queueentry`);
 
         if (response.status === 204) {
-          setEntries([]);
+          if (!isCancelled) {
+            setEntries([]);
+          }
           return;
         }
 
@@ -58,15 +82,34 @@ export default function AdminDashboard() {
         }
         
         const data = await response.json();
-        setEntries(data);
+        if (!isCancelled) {
+          setEntries(data);
+        }
       } catch (error) {
-        console.error("Error fetching queues:", error);
-        setEntries([]);
+        console.error("Error fetching queue entries:", error);
+        if (!isCancelled) {
+          setActionMessage({
+            type: "error",
+            text: "Unable to load queue entries right now."
+          });
+          setEntries([]);
+        }
       }
     };
-    
-    fetchQueues();
-    fetchQueueEntries();
+
+    const loadDashboard = async () => {
+      await Promise.all([fetchQueues(), fetchQueueEntries()]);
+    };
+
+    void loadDashboard();
+    const timer = window.setInterval(() => {
+      void loadDashboard();
+    }, 10000);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(timer);
+    };
   }, []);
 
   const getWaitingCount = (queueId: number) => {
@@ -122,6 +165,7 @@ export default function AdminDashboard() {
     }
 
     setIsApplyingQueueStatus(true);
+    setActionMessage(null);
 
     try {
       for (const queueId of queueIds) {
@@ -137,7 +181,11 @@ export default function AdminDashboard() {
         });
 
         if (!response.ok) {
-          throw new Error(`Failed to update queue ${numericQueueId} status: ${response.status}`);
+          const errorMessage = await extractApiErrorMessage(
+            response,
+            `Failed to update queue ${numericQueueId} status`
+          );
+          throw new Error(errorMessage);
         }
       }
 
@@ -146,9 +194,16 @@ export default function AdminDashboard() {
         ...pendingQueueStatuses
       }));
       setPendingQueueStatuses({});
+      setActionMessage({
+        type: "success",
+        text: "Queue status changes applied successfully"
+      });
     } catch (error) {
       console.error("Error applying queue status changes:", error);
-      alert("Failed to apply queue status changes. Please try again.");
+      setActionMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to apply queue status changes. Please try again."
+      });
     } finally {
       setIsApplyingQueueStatus(false);
     }
@@ -169,6 +224,8 @@ export default function AdminDashboard() {
   };
 
   const handleSaveService = async (serviceData: Partial<Service>) => {
+    setActionMessage(null);
+
     if (editingService) {
       try {
         const serviceResponse = await fetch(`${import.meta.env.VITE_API_URL}/service/${editingService.id}`, {
@@ -185,7 +242,11 @@ export default function AdminDashboard() {
         });
 
         if (!serviceResponse.ok) {
-          throw new Error(`Failed to update service: ${serviceResponse.status}`);
+          const errorMessage = await extractApiErrorMessage(
+            serviceResponse,
+            "Failed to update service"
+          );
+          throw new Error(errorMessage);
         }
 
         const updatedService = await serviceResponse.json();
@@ -206,9 +267,16 @@ export default function AdminDashboard() {
         );
 
         setEditingService(null);
+        setActionMessage({
+          type: "success",
+          text: `Service "${updatedService.name}" updated successfully`
+        });
       } catch (error) {
         console.error("Error updating service:", error);
-        alert("Failed to update service. Please try again.");
+        setActionMessage({
+          type: "error",
+          text: error instanceof Error ? error.message : "Failed to update service. Please try again."
+        });
         return;
       }
     } else {
@@ -228,7 +296,11 @@ export default function AdminDashboard() {
         });
 
         if (!serviceResponse.ok) {
-          throw new Error(`Failed to create service: ${serviceResponse.status}`);
+          const errorMessage = await extractApiErrorMessage(
+            serviceResponse,
+            "Failed to create service"
+          );
+          throw new Error(errorMessage);
         }
 
         const createdService = await serviceResponse.json();
@@ -246,16 +318,27 @@ export default function AdminDashboard() {
         });
 
         if (!queueResponse.ok) {
-          throw new Error(`Failed to create queue: ${queueResponse.status}`);
+          const errorMessage = await extractApiErrorMessage(
+            queueResponse,
+            "Failed to create queue"
+          );
+          throw new Error(errorMessage);
         }
 
         const createdQueue = await queueResponse.json();
 
         // Step 3: Add the new queue to state
         setQueues((previous) => [...previous, createdQueue]);
+        setActionMessage({
+          type: "success",
+          text: `Service "${createdService.name}" created successfully`
+        });
       } catch (error) {
         console.error("Error creating service and queue:", error);
-        alert("Failed to create service. Please try again.");
+        setActionMessage({
+          type: "error",
+          text: error instanceof Error ? error.message : "Failed to create service. Please try again."
+        });
       }
     }
 
@@ -285,6 +368,16 @@ export default function AdminDashboard() {
             + New Service
           </Button>
         </div>
+
+        {actionMessage ? (
+          <div className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${
+            actionMessage.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-rose-200 bg-rose-50 text-rose-700"
+          }`}>
+            {actionMessage.text}
+          </div>
+        ) : null}
 
         <div className="mb-6 flex flex-col justify-end gap-3 sm:flex-row">
           <Button
