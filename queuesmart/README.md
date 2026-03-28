@@ -16,6 +16,26 @@ npm --version
 
 If Node.js is not installed, download it from [https://nodejs.org](https://nodejs.org).
 
+## Environment Variables
+
+Vite requires environment variables to be prefixed with `VITE_` to be accessible in the app.
+
+Create a `.env` file inside the `queuesmart/` folder:
+
+```bash
+touch queuesmart/.env
+```
+
+Then add the following:
+
+```env
+VITE_API_URL=https://localhost:5173
+```
+
+> **Note:** Update `VITE_API_URL` to match wherever your backend is running. This variable is used throughout the app to make API requests.
+
+---
+
 ## Getting Started
 
 ### 1. Navigate to the project folder
