@@ -33,3 +33,4 @@ jobs:
 
       - name: Run tests
         run: dotnet test Backend.Tests/Backend.Tests.csproj --configuration Release --no-build --verbosity normal
+
