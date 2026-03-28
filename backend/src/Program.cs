@@ -53,7 +53,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173") // our frontend url
+        policy.WithOrigins(["http://localhost:5173", "https://salmon-bush-0dd5d8610.4.azurestaticapps.net"]) // our frontend url
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
