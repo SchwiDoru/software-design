@@ -59,9 +59,75 @@ Run these commands in the `/backend` folder.
 ### Local Development (without Docker)
 
 ```bash
+# Navigate to the backend folder
+cd backend
+
 # Restore packages
 dotnet restore
 
 # Run the project with hot reload
 dotnet watch run
+```
+
+The API will be available at `https://localhost:5001` (or `http://localhost:5000`).
+
+### With Docker (Recommended)
+
+Docker is configured with file-watching via Docker Watch for a seamless dev experience.
+
+```bash
+# Start all services (from the root of the repo)
+docker compose up
+
+# Or run in detached mode
+docker compose up -d
+```
+
+**How Docker Watch works:**
+
+1. **Sync Source**: Any changes in `src/` trigger an immediate hot reload via `dotnet watch`.
+2. **Auto-Rebuild**: Changes to `backend.csproj` trigger a container rebuild to install new NuGet packages automatically.
+
+---
+
+## Dotnet Commands
+
+Run these commands from inside the `backend/` folder.
+
+```bash
+cd backend
+```
+
+### Package Management
+
+**Add a new library:**
+
+```bash
+dotnet add package <PACKAGE_NAME>
+```
+
+**Restore packages:**
+
+```bash
+dotnet restore
+```
+
+### Managing Secrets (Environment Variables)
+
+We use **User Secrets** to keep sensitive data like connection strings out of source control. The Secret ID is already defined in the `backend.csproj`. **Do not run `dotnet user-secrets init` again.** NOTE: secrets are added to your local machine.
+
+**Verify user-secrets is setup:**
+
+Verify that `backend.csproj` contains a `<UserSecretsId>` tag. If it's there, you are ready to add secrets.
+
+**Add a secret:**
+
+```bash
+dotnet user-secrets set "Key" "Value"
+```
+
+**View your secrets:**
+
+```bash
+dotnet user-secrets list
 ```
