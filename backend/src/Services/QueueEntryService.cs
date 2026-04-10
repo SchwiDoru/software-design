@@ -83,7 +83,7 @@ public class QueueEntryServices : IQueueEntryServices
                 .CountAsync(existingQueueEntry =>
                     existingQueueEntry.Priority > queueEntry.Priority ||
                     (existingQueueEntry.Priority == queueEntry.Priority && existingQueueEntry.JoinTime < joinTime) ||
-                    (existingQueueEntry.Priority == queueEntry.Priority && existingQueueEntry.JoinTime == joinTime && string.Compare(existingQueueEntry.UserId, normalizedUserId, StringComparison.Ordinal) < 0));
+                    (existingQueueEntry.Priority == queueEntry.Priority && existingQueueEntry.JoinTime == joinTime && string.Compare(existingQueueEntry.UserId, normalizedUserId) < 0));
 
             return higherRankedEntriesCount;
         }
@@ -183,8 +183,6 @@ public class QueueEntryServices : IQueueEntryServices
         try
         {
             return await _dbContext.QueueEntries
-                                    .AsNoTracking()
-                                    .AsSplitQuery()
                                     .Include(qe => qe.Queue)
                                         .ThenInclude(queue => queue!.Service)
                                     .Include(qe => qe.User)
@@ -207,8 +205,6 @@ public class QueueEntryServices : IQueueEntryServices
         var normalizedUserId = userId.Trim().ToLowerInvariant();
 
         return await _dbContext.QueueEntries
-            .AsNoTracking()
-            .AsSplitQuery()
             .Include(qe => qe.Queue!)
                 .ThenInclude(queue => queue.Service)
             .Include(qe => qe.User)
@@ -571,6 +567,7 @@ public class QueueEntryServices : IQueueEntryServices
         }
         catch(Exception err)
         {
+            Console.WriteLine(err.InnerException?.Message ?? err.Message);
             throw new Exception("Unexpected error updating queue entry: ", err);
         }
     }

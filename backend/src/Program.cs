@@ -92,11 +92,12 @@ var logger = app.Services.GetRequiredService<ILogger<Program>>();
 logger.LogInformation("Application available at: http://localhost:{Port}", port);
 
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
+
+app.UseRouting(); 
 
 app.UseCors("AllowFrontend");
 // app.UseHttpsRedirection();
