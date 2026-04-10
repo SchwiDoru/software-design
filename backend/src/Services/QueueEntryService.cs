@@ -183,6 +183,8 @@ public class QueueEntryServices : IQueueEntryServices
         try
         {
             return await _dbContext.QueueEntries
+                                    .AsNoTracking()
+                                    .AsSplitQuery()
                                     .Include(qe => qe.Queue)
                                         .ThenInclude(queue => queue!.Service)
                                     .Include(qe => qe.User)
@@ -205,6 +207,8 @@ public class QueueEntryServices : IQueueEntryServices
         var normalizedUserId = userId.Trim().ToLowerInvariant();
 
         return await _dbContext.QueueEntries
+            .AsNoTracking()
+            .AsSplitQuery()
             .Include(qe => qe.Queue!)
                 .ThenInclude(queue => queue.Service)
             .Include(qe => qe.User)
