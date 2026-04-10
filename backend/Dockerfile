@@ -29,5 +29,7 @@ COPY --from=publish /app/publish .
 # Expose the default .NET container port
 EXPOSE 8080
 
+ENV DOTNET_gcServer=0
+
 # 🔴 Replace with your actual DLL name
 ENTRYPOINT ["dotnet", "backend.dll"]

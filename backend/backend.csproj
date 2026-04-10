@@ -4,9 +4,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
     <UserSecretsId>6cbb3a93-0b6c-4eb3-8f7e-a24eb0969d6f</UserSecretsId>
   </PropertyGroup>
-
  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3" /> 
     
