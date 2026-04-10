@@ -21,11 +21,11 @@ public class AppDbContext: DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        modelBuilder.Entity<QueueEntry>()
-            .HasIndex(queueEntry => queueEntry.UserId)
-            .IsUnique()
-            .HasDatabaseName("one_active_queue_per_user")
-            .HasFilter($"[{nameof(QueueEntry.Status)}] IN ({(int)QueueEntryStatus.Pending}, {(int)QueueEntryStatus.Waiting}, {(int)QueueEntryStatus.InProgress})");
+      modelBuilder.Entity<QueueEntry>()
+        .HasIndex(queueEntry => queueEntry.UserId)
+        .IsUnique()
+        .HasDatabaseName("one_active_queue_per_user")
+        .HasFilter($"\"{nameof(QueueEntry.Status)}\" IN ({(int)QueueEntryStatus.Pending}, {(int)QueueEntryStatus.Waiting}, {(int)QueueEntryStatus.InProgress})");
 
         modelBuilder.Entity<NotificationEvent>()
             .HasIndex(notification => new { notification.Audience, notification.UserId, notification.CreatedAt });

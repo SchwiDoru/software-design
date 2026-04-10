@@ -15,9 +15,17 @@ builder.Services.AddOpenApi();
 
 // Inject dependencies here
 builder.Services.AddSingleton<HealthCheckService>();
+
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+if (string.IsNullOrEmpty(connectionString))
+{
+    throw new InvalidOperationException("Database connection string 'DefaultConnection' not found. Check your User Secrets or appsettings.json.");
+}
+
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    options.UseInMemoryDatabase("in_memory_db");
+    options.UseNpgsql(connectionString);
 });
 builder.Services.AddScoped<IServiceManager, ServiceManager>();
 builder.Services.AddScoped<IQueueService, QueueService>();

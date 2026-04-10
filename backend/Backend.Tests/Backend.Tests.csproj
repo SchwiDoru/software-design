@@ -25,7 +25,7 @@
     <CoverletOutputFormat>json,cobertura</CoverletOutputFormat>
     <Include>[backend]*</Include>
     <Exclude>[Backend.Tests*]*,[xunit*]*,[Moq*]*</Exclude>
-    <ExcludeByFile>**/obj/**,**/*.g.cs,**/*.generated.cs,**/*OpenApiXmlCommentSupport.generated.cs</ExcludeByFile>
+    <ExcludeByFile>**/obj/**,**/*.g.cs,**/*.generated.cs,**/*OpenApiXmlCommentSupport.generated.cs,**/Migrations/**/*.cs</ExcludeByFile>
     <IncludeTestAssembly>false</IncludeTestAssembly>
   </PropertyGroup>
 
