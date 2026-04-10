@@ -1,11 +1,8 @@
 using System.ComponentModel.DataAnnotations;
-using System.Security.Cryptography;
-using System.Text;
 using Backend.Constants;
-using Backend.Data;
 using Backend.DTO.Auth;
 using Backend.Models;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 
 namespace Backend.Services.Auth;
 
@@ -13,12 +10,12 @@ public class AuthService : IAuthService
 {
     private static readonly EmailAddressAttribute EmailValidator = new();
     private readonly IAuthStore _authStore;
-    private readonly AppDbContext _dbContext;
+    private readonly IPasswordHasher<UserCredentials> _passwordHasher;
 
-    public AuthService(IAuthStore authStore, AppDbContext dbContext)
+    public AuthService(IAuthStore authStore, IPasswordHasher<UserCredentials> passwordHasher)
     {
         _authStore = authStore;
-        _dbContext = dbContext;
+        _passwordHasher = passwordHasher;
     }
 
     public async Task<AuthResponseDTO> Register(RegisterRequestDTO request)
@@ -41,26 +38,8 @@ public class AuthService : IAuthService
         var record = await _authStore.CreatePatient(
             name: name,
             email: email,
-            passwordHash: HashPassword(password),
+            passwordHash: HashPassword(email, password, UserRole.Patient),
             phone: phone);
-
-        var existingProfile = await _dbContext.UserProfiles.FirstOrDefaultAsync(profile => profile.Email == email);
-        if (existingProfile == null)
-        {
-            _dbContext.UserProfiles.Add(new UserProfile
-            {
-                Name = name,
-                Email = email,
-                PhoneNumber = phone
-            });
-        }
-        else
-        {
-            existingProfile.Name = name;
-            existingProfile.PhoneNumber = phone;
-        }
-
-        await _dbContext.SaveChangesAsync();
 
         return CreateAuthResponse("Registration successful", record);
     }
@@ -75,9 +54,22 @@ public class AuthService : IAuthService
         ValidateLoginRequest(email, password);
 
         var record = await _authStore.GetByEmail(email);
-        if (record == null || record.Credentials.PasswordHash != HashPassword(password))
+        if (record == null)
         {
             throw new UnauthorizedAccessException("Invalid email or password.");
+        }
+
+        var verificationResult = _passwordHasher.VerifyHashedPassword(record.Credentials, record.Credentials.PasswordHash, password);
+        if (verificationResult == PasswordVerificationResult.Failed)
+        {
+            throw new UnauthorizedAccessException("Invalid email or password.");
+        }
+
+        if (verificationResult == PasswordVerificationResult.SuccessRehashNeeded)
+        {
+            await _authStore.UpdatePasswordHash(
+                record.Credentials,
+                _passwordHasher.HashPassword(record.Credentials, password));
         }
 
         return CreateAuthResponse("Login successful", record);
@@ -224,10 +216,15 @@ public class AuthService : IAuthService
         return phone.Trim();
     }
 
-    private static string HashPassword(string password)
+    private string HashPassword(string email, string password, UserRole role)
     {
-        using var sha256 = SHA256.Create();
-        var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
-        return Convert.ToHexString(hashBytes).ToLowerInvariant();
+        var credentials = new UserCredentials
+        {
+            Email = email,
+            PasswordHash = string.Empty,
+            Role = role
+        };
+
+        return _passwordHasher.HashPassword(credentials, password);
     }
 }

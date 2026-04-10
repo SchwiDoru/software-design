@@ -1,8 +1,10 @@
 using Backend.Constants;
 using Backend.Data;
 using Backend.DTO.Auth;
+using Backend.Models;
 using Backend.Tests.Data;
 using Backend.Services.Auth;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace Backend.Tests.Services;
@@ -15,7 +17,9 @@ public class AuthServiceTests
     public AuthServiceTests()
     {
         _dbContext = TestDbContextFactory.CreateWithSeedData(Guid.NewGuid().ToString());
-        _authService = new AuthService(new InMemoryAuthStore(), _dbContext);
+        var passwordHasher = new PasswordHasher<UserCredentials>();
+        AuthSeedData.EnsureSeedUsersAsync(_dbContext, passwordHasher).GetAwaiter().GetResult();
+        _authService = new AuthService(new DatabaseAuthStore(_dbContext), passwordHasher);
     }
 
     private static RegisterRequestDTO CreateValidRegisterRequest(
@@ -44,6 +48,7 @@ public class AuthServiceTests
         Assert.Equal(UserRole.Patient, response.User.Role);
         Assert.Equal("4695551234", response.User.Phone);
         Assert.True(await _dbContext.UserProfiles.AnyAsync(profile => profile.Email == "patient@example.com"));
+        Assert.True(await _dbContext.UserCredentials.AnyAsync(credentials => credentials.Email == "patient@example.com"));
     }
 
     [Fact]

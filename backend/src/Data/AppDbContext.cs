@@ -11,6 +11,7 @@ public class AppDbContext: DbContext
     public DbSet<Service> Services {get; set;}
     public DbSet<Queue> Queues {get; set;}
     public DbSet<UserProfile> UserProfiles {get; set;}
+    public DbSet<UserCredentials> UserCredentials { get; set; }
     public DbSet<QueueEntry> QueueEntries {get; set;}
     public DbSet<NotificationEvent> NotificationEvents {get; set;}
     public DbSet<History> Histories { get; set; }
@@ -29,6 +30,17 @@ public class AppDbContext: DbContext
 
         modelBuilder.Entity<NotificationEvent>()
             .HasIndex(notification => new { notification.Audience, notification.UserId, notification.CreatedAt });
+
+        modelBuilder.Entity<UserCredentials>()
+            .HasIndex(credentials => credentials.Email)
+            .IsUnique();
+
+        modelBuilder.Entity<UserCredentials>()
+            .HasOne(credentials => credentials.Profile)
+            .WithOne(profile => profile.Credentials)
+            .HasForeignKey<UserCredentials>(credentials => credentials.Email)
+            .HasPrincipalKey<UserProfile>(profile => profile.Email)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<History>()
             .HasIndex(history => history.QueueEntryId)

@@ -1,9 +1,11 @@
 using System.Text.Json.Serialization;
+using Backend.Models;
 using Backend.Services;
 using Backend.Services.Auth;
 using Microsoft.EntityFrameworkCore;
 using Backend.Data;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,7 +32,8 @@ builder.Services.AddScoped<IQueueService, QueueService>();
 builder.Services.AddScoped<IQueueEntryServices, QueueEntryServices>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IHistoryService, HistoryService>();
-builder.Services.AddSingleton<IAuthStore, InMemoryAuthStore>();
+builder.Services.AddScoped<IAuthStore, DatabaseAuthStore>();
+builder.Services.AddScoped<IPasswordHasher<UserCredentials>, PasswordHasher<UserCredentials>>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -74,6 +77,15 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
 var app = builder.Build();
+
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<UserCredentials>>();
+
+    await dbContext.Database.MigrateAsync();
+    await AuthSeedData.EnsureSeedUsersAsync(dbContext, passwordHasher);
+}
 
 var port = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS") ?? "8080";
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
