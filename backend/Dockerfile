@@ -1,4 +1,5 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+# REMOVED -alpine from this line
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /source
 
 # Copy project file and restore
@@ -18,7 +19,8 @@ FROM build AS publish
 RUN dotnet publish -c Release -o /app/publish
 
 # -------- PRODUCTION RUNTIME --------
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS prod
+# REMOVED -alpine from this line
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS prod
 WORKDIR /app
 
 # Copy published output
