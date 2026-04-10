@@ -13,4 +13,5 @@ public interface IAuthStore
     Task<AuthUserRecord?> GetByEmail(string email);
     Task<bool> EmailExists(string email);
     Task<AuthUserRecord> CreatePatient(string name, string email, string passwordHash, string? phone);
+    Task UpdatePasswordHash(UserCredentials credentials, string passwordHash);
 }

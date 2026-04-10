@@ -9,4 +9,6 @@ public class UserProfile
     [Key]
     required public string Email {get; set;}
     public string? PhoneNumber {get; set;}
+
+    public UserCredentials? Credentials { get; set; }
 }
