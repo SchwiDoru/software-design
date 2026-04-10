@@ -1,4 +1,3 @@
-# REMOVED -alpine from this line
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /source
 
@@ -19,17 +18,17 @@ FROM build AS publish
 RUN dotnet publish -c Release -o /app/publish
 
 # -------- PRODUCTION RUNTIME --------
-# REMOVED -alpine from this line
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS prod
 WORKDIR /app
+
+# Fix: install missing native lib that Npgsql needs for Kerberos probe on Linux
+RUN apt-get update && apt-get install -y libgssapi-krb5-2 && rm -rf /var/lib/apt/lists/*
 
 # Copy published output
 COPY --from=publish /app/publish .
 
-# Expose the default .NET container port
 EXPOSE 8080
 
 ENV DOTNET_gcServer=0
 
-# 🔴 Replace with your actual DLL name
 ENTRYPOINT ["dotnet", "backend.dll"]
