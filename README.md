@@ -15,6 +15,17 @@ Before running the project, make sure Docker is installed on your machine:
 docker --version
 ```
 
+## Run docker database locally: 
+Create a .env file and ensure it is in the root directory of the project. The following variable names should be added (change values according to your connection):
+```env
+POSTGRES_USER=youruser
+POSTGRES_PASSWORD=yourpassword
+POSTGRES_DB=yourdb
+
+DB_CONNECTION_STRING="Host=db;Port=5433;Database=yourdb;Username=youruser;Password=yourpassword;"
+```
+
+
 ## Start Development Services
 
 > **Note:** Make sure Docker Desktop is running before starting the containers.
