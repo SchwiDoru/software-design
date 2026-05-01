@@ -18,8 +18,31 @@ public class QueueEntryServiceTests: IDisposable
     {
  
         _testDbContext = TestDbContextFactory.CreateWithSeedData();
-        _service = new QueueEntryServices(_testDbContext, new NotificationService(_testDbContext));
+        _service = new QueueEntryServices(
+            _testDbContext,
+            new NotificationService(_testDbContext),
+            new TestPriorityClassifier(),
+            new TestAISettingsService(enabled: false));
     }
+
+    private sealed class TestPriorityClassifier : IPriorityClassifier
+    {
+        public Task<PriorityLevel> ClassifyAsync(string? description) => Task.FromResult(PriorityLevel.Low);
+    }
+
+    private sealed class TestAISettingsService(bool enabled) : IAISettingsService
+    {
+        private bool _enabled = enabled;
+
+        public Task<bool> IsAiModeEnabledAsync() => Task.FromResult(_enabled);
+
+        public Task SetAiModeAsync(bool enabled)
+        {
+            _enabled = enabled;
+            return Task.CompletedTask;
+        }
+    }
+
     private static QueueEntry CreateValidQueueEntry(
         int queueId = 1,
         string userId = "test@example.com",

@@ -6,12 +6,24 @@ using Microsoft.EntityFrameworkCore;
 using Backend.Data;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.SemanticKernel;
+using Backend.Services.AI;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddKernel();
+var geminiApiKey = builder.Configuration["GEMINI_API_KEY"];
+
+if (string.IsNullOrWhiteSpace(geminiApiKey))
+{
+    throw new InvalidOperationException("Gemini API key not found. Set GEMINI_API_KEY in user secrets or environment variables.");
+}
+
+builder.Services.AddGoogleAIGeminiChatCompletion("gemini-2.5-flash", geminiApiKey);
 
 // Inject dependencies here
 builder.Services.AddSingleton<HealthCheckService>();
@@ -36,6 +48,8 @@ builder.Services.AddScoped<IReportingService, ReportingService>();
 builder.Services.AddScoped<IAuthStore, DatabaseAuthStore>();
 builder.Services.AddScoped<IPasswordHasher<UserCredentials>, PasswordHasher<UserCredentials>>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IPriorityClassifier, PriorityClassifier>();
+builder.Services.AddScoped<IAISettingsService, AISettingsService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
