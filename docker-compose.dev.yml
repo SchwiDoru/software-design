@@ -52,6 +52,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
   db:
     image: postgres:17-alpine
     container_name: queuesmart-db-dev
