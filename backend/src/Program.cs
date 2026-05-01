@@ -44,11 +44,13 @@ builder.Services.AddScoped<IQueueService, QueueService>();
 builder.Services.AddScoped<IQueueEntryServices, QueueEntryServices>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IHistoryService, HistoryService>();
+builder.Services.AddScoped<IReportingService, ReportingService>();
 builder.Services.AddScoped<IAuthStore, DatabaseAuthStore>();
 builder.Services.AddScoped<IPasswordHasher<UserCredentials>, PasswordHasher<UserCredentials>>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPriorityClassifier, PriorityClassifier>();
 builder.Services.AddScoped<IAISettingsService, AISettingsService>();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {

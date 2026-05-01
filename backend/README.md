@@ -52,6 +52,27 @@ dotnet --version
 # Expected output: 10.x.x
 ```
 
+## Manual Database Setup (Non-Docker)
+
+If you are not using Docker, follow these steps to link your Backend to your local PostgreSQL instance:
+
+### 1. pgAdmin Configuration
+1. Open **pgAdmin 4**.
+2. Right-click **Servers** > **Register** > **Server...**
+3. Under the **Connection** tab, enter:
+   - **Host:** `localhost` (or `127.0.0.1`)
+   - **Port:** `5432`
+   - **Password:** The password you chose during the Postgres installation.
+4. Once connected, right-click **Databases** > **Create** > **Database...** and name it `queuesmart_local_db`.
+
+### 1. File Placement
+Create your `.env` file in the **root of the `/backend` folder** (where your `.csproj` file lives). This ensures the application can find it when you run the backend.
+
+```env
+# Manual Connection String
+# Use 'localhost' because the DB is running natively on your OS.
+DB_CONNECTION_STRING="Host=localhost;Port=5432;Database=queuesmart_local_db;Username=postgres;Password=YOUR_INSTALL_PASSWORD;"
+```
 ## Running the Project
 
 Run these commands in the `/backend` folder.
