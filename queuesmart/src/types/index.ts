@@ -107,6 +107,54 @@ export interface PatientProfile {
     histories: HistoryRecord[];
 }
 
+export interface ReportFilters {
+    startDate?: string;
+    endDate?: string;
+    serviceId?: number;
+    status?: QueueEntryStatus;
+}
+
+export interface QueueUsageStats {
+    totalQueueEntries: number;
+    usersServed: number;
+    averageWaitMinutes: number;
+    statusBreakdown: Record<string, number>;
+}
+
+export interface ServiceQueueActivity {
+    serviceId: number;
+    serviceName: string;
+    queueCount: number;
+    entryCount: number;
+    usersServed: number;
+    averageWaitMinutes: number;
+}
+
+export interface UserQueueParticipation {
+    queueEntryId: number;
+    userEmail: string;
+    userName: string;
+    phoneNumber?: string;
+    queueId: number;
+    serviceId?: number;
+    serviceName: string;
+    queueDate?: string;
+    joinedAt: string;
+    completedAt?: string;
+    status: QueueEntryStatus;
+    priority: Priority;
+    position?: number | null;
+    waitMinutes?: number | null;
+}
+
+export interface ReportSummary {
+    generatedAt: string;
+    filters: ReportFilters;
+    usageStats: QueueUsageStats;
+    serviceActivity: ServiceQueueActivity[];
+    userParticipation: UserQueueParticipation[];
+}
+
 // Admin Dashboard specific types
 export interface AdminDashboardStats {
     totalServices: number;
