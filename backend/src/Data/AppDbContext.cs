@@ -17,6 +17,7 @@ public class AppDbContext: DbContext
     public DbSet<History> Histories { get; set; }
     public DbSet<HistoryDetail> HistoryDetails { get; set; }
     public DbSet<Prescription> Prescriptions { get; set; }
+    public DbSet<AiModeSetting> AiModeSettings { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

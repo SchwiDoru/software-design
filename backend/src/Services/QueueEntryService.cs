@@ -10,11 +10,15 @@ public class QueueEntryServices : IQueueEntryServices
 {
     private readonly AppDbContext _dbContext;
     private readonly INotificationService _notificationService;
+    private readonly IPriorityClassifier _priorityClassifier;
+    private readonly IAISettingsService _aiSettingsService;
 
-    public QueueEntryServices(AppDbContext dbContext, INotificationService notificationService)
+    public QueueEntryServices(AppDbContext dbContext, INotificationService notificationService, IPriorityClassifier classifier, IAISettingsService aiSettingsService)
     {
         _dbContext = dbContext;
         _notificationService = notificationService;
+        _priorityClassifier = classifier;
+        _aiSettingsService = aiSettingsService;
     }
 
     private async Task EnsureQueueIsOpen(int queueId)
@@ -275,8 +279,30 @@ public class QueueEntryServices : IQueueEntryServices
                 throw new ArgumentException($"User '{normalizedUserId}' already has an active queue entry");
             }
 
+            var aiMode = await _aiSettingsService.IsAiModeEnabledAsync();
+            if (aiMode)
+            {
+                // Classify and set priority
+                var priority = await _priorityClassifier.ClassifyAsync(queueEntry.Description);
+                queueEntry.Priority = priority;
+                queueEntry.Status = QueueEntryStatus.Waiting;
+
+                // Set position using helper
+                queueEntry.JoinTime = DateTime.UtcNow;
+                queueEntry.Position = await CalculateQueueEntryPosition(queueEntry);
+            }
+
+            var updatedPosition = queueEntry.Status == QueueEntryStatus.Waiting ? queueEntry.Position : null;
+
             await _dbContext.QueueEntries.AddAsync(queueEntry);
             await _dbContext.SaveChangesAsync();
+
+            if (updatedPosition.HasValue)
+            {
+                await RecalculateQueuePositions(queueEntry.QueueId, normalizedUserId, null, updatedPosition);
+                await _dbContext.SaveChangesAsync();
+            }
+
             await _notificationService.CreateQueueJoinedNotification(queueEntry.Id);
             return queueEntry;
         }

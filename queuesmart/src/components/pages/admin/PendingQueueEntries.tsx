@@ -42,9 +42,13 @@ export default function PendingQueueEntries() {
   const [submitState, setSubmitState] = useState<SubmitState>({});
   const [actionMessage, setActionMessage] = useState<ActionMessage | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [aiEnabled, setAiEnabled] = useState<boolean | null>(null);
+  const [aiToggleLoading, setAiToggleLoading] = useState(false);
 
   useEffect(() => {
     let isCancelled = false;
+    // load ai mode
+    let cancelled = false;
 
     const loadData = async () => {
       if (!isCancelled) {
@@ -90,7 +94,21 @@ export default function PendingQueueEntries() {
       }
     };
 
+    // load AI mode separately to avoid blocking main data load
+    const loadAi = async () => {
+      try {
+        const resp = await fetch(`${import.meta.env.VITE_API_URL}/ai-mode`);
+        if (resp.ok) {
+          const payload = await resp.json();
+          if (!cancelled) setAiEnabled(Boolean(payload?.isEnabled));
+        }
+      } catch (err) {
+        console.error("Failed to load AI mode", err);
+      }
+    };
+
     void loadData();
+    void loadAi();
     const timer = window.setInterval(() => {
       void loadData();
     }, 10000);
@@ -98,6 +116,7 @@ export default function PendingQueueEntries() {
     return () => {
       isCancelled = true;
       window.clearInterval(timer);
+      cancelled = true;
     };
   }, []);
 
@@ -223,6 +242,34 @@ export default function PendingQueueEntries() {
     }
   };
 
+  const handleToggleAiMode = async () => {
+    if (aiEnabled === null) return;
+
+    setAiToggleLoading(true);
+    setActionMessage(null);
+
+    try {
+      const resp = await fetch(`${import.meta.env.VITE_API_URL}/ai-mode`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isEnabled: !aiEnabled })
+      });
+
+      if (!resp.ok) {
+        const msg = await resp.text().catch(() => "");
+        throw new Error(msg || "Failed to update AI mode");
+      }
+
+      setAiEnabled(!aiEnabled);
+      setActionMessage({ type: "success", text: `AI mode ${!aiEnabled ? "enabled" : "disabled"}` });
+    } catch (err) {
+      console.error(err);
+      setActionMessage({ type: "error", text: err instanceof Error ? err.message : "Unable to update AI mode" });
+    } finally {
+      setAiToggleLoading(false);
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="mx-auto w-full max-w-7xl pb-20">
@@ -240,13 +287,34 @@ export default function PendingQueueEntries() {
             </p>
           </div>
 
-          <div className="surface-card flex min-w-[220px] items-center justify-between gap-4 p-5">
-            <div>
-              <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Total Pending Entries</p>
-              <p className="mt-2 text-3xl font-semibold text-foreground">{pendingEntries.length}</p>
-            </div>
-            <div className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-amber-700">
-              Needs review
+          <div className="flex min-w-[220px] flex-col items-end gap-3">
+            <button
+              type="button"
+              onClick={handleToggleAiMode}
+              className={`group inline-flex min-w-[156px] items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
+                aiEnabled
+                  ? "bg-emerald-600 text-white shadow-lg shadow-emerald-900/25 hover:bg-emerald-700 focus-visible:ring-emerald-500"
+                  : "border border-border bg-white text-foreground shadow-sm hover:-translate-y-px hover:bg-muted focus-visible:ring-accent"
+              }`}
+              disabled={aiToggleLoading || aiEnabled === null}
+              aria-label="Toggle AI mode for queue classification"
+            >
+              <span
+                className={`h-2.5 w-2.5 rounded-full ${
+                  aiEnabled ? "bg-white" : "bg-foreground/60"
+                } ${aiToggleLoading ? "animate-pulse" : ""}`}
+              />
+              {aiToggleLoading ? "Updating AI..." : aiEnabled ? "Disable AI Classify" : "Enable AI Classify"}
+            </button>
+
+            <div className="surface-card flex w-full items-center justify-between gap-4 p-5">
+              <div>
+                <p className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">Total Pending Entries</p>
+                <p className="mt-2 text-3xl font-semibold text-foreground">{pendingEntries.length}</p>
+              </div>
+              <div className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-amber-700">
+                Needs review
+              </div>
             </div>
           </div>
         </div>
