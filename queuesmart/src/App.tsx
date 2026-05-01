@@ -7,6 +7,7 @@ import AdminDashboard from "./components/pages/admin/AdminDashboard"
 import PendingQueueEntries from "./components/pages/admin/PendingQueueEntries"
 import QueueManagement from "./components/pages/admin/QueueManagement"
 import DoctorQueue from "./components/pages/admin/DoctorQueue"
+import Reports from "./components/pages/admin/Reports"
 import History from "./components/pages/History"
 import HistoryDetail from "./components/pages/HistoryDetail"
 import PatientDirectory from "./components/pages/admin/PatientDirectory"
@@ -49,6 +50,10 @@ function App() {
       <Route path="/staff/update-password" element={<StaffUpdatePassword />} />
 
       {/* Admin Routes */}
+      <Route element={<ProtectedRoute allowedRoles={["Admin", "Staff"]} />}>
+        <Route path="/admin/reports" element={<Reports />} />
+      </Route>
+
       <Route element={<ProtectedRoute allowedRoles={["Admin", "Staff"]} />}>
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/queue" element={<QueueManagement />} />

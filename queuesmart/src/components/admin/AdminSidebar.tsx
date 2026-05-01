@@ -18,6 +18,7 @@ export default function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
     { name: "Manage Queues", path: "/admin/queue" },
     { name: "Active Patients", path: "/admin/doctor-queue" },
     { name: "Patients", path: "/admin/patients" },
+    ...(authenticatedUser?.role === "Admin" || authenticatedUser?.role === "Staff" ? [{ name: "Reports", path: "/admin/reports" }] : []),
   ];
 
   const handleLogout = async () => {
