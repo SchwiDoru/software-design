@@ -46,6 +46,7 @@ export interface QueueEntry {
     queue?: Queue;
     position: number | null;
     joinTime: string; // ISO Date string
+    inProgressAt?: string | null;
     status: QueueEntryStatus;
     priority: Priority;
     description?: string;

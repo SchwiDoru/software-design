@@ -261,6 +261,7 @@ public class QueueEntryServices : IQueueEntryServices
             if (queueEntry.Status == QueueEntryStatus.InProgress)
             {
                 await EnsureNoOtherInProgressEntryInQueue(queueEntry.QueueId);
+                queueEntry.InProgressAt = DateTime.UtcNow;
             }
 
             var userExists = await _dbContext.UserProfiles.AnyAsync(u => u.Email == normalizedUserId);
@@ -432,6 +433,15 @@ public class QueueEntryServices : IQueueEntryServices
             }
 
             existingQueueEntry.Status = status;
+
+            if (status == QueueEntryStatus.InProgress)
+            {
+                existingQueueEntry.InProgressAt = DateTime.UtcNow;
+            }
+            else
+            {
+                existingQueueEntry.InProgressAt = null;
+            }
 
             if (status == QueueEntryStatus.Waiting)
             {
@@ -697,7 +707,8 @@ public class QueueEntryServices : IQueueEntryServices
 
             if (currentInProgressEntry != null)
             {
-                inProgressElapsedMinutes = Math.Max(0, (int)Math.Floor((DateTime.UtcNow - currentInProgressEntry.JoinTime).TotalMinutes));
+                var startedAt = currentInProgressEntry.InProgressAt ?? currentInProgressEntry.JoinTime;
+                inProgressElapsedMinutes = Math.Max(0, (int)Math.Floor((DateTime.UtcNow - startedAt).TotalMinutes));
                 inProgressRemainingMinutes = Math.Max(0, service.Duration - inProgressElapsedMinutes);
             }
 

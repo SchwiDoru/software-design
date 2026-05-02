@@ -251,7 +251,7 @@ export default function DoctorQueue() {
                                 </div>
                                 <div className="rounded-2xl border border-border bg-card p-4">
                                   <p className="text-xs uppercase tracking-[0.15em] text-muted-foreground">Started At</p>
-                                  <p className="mt-2 text-lg font-semibold text-foreground">{formatJoinTime(entry.joinTime)}</p>
+                                  <p className="mt-2 text-lg font-semibold text-foreground">{formatJoinTime(entry.inProgressAt ?? entry.joinTime)}</p>
                                 </div>
                               </div>
 
@@ -272,7 +272,7 @@ export default function DoctorQueue() {
                                   <div className="w-full max-w-xs rounded-xl border border-border bg-background px-4 py-3 text-center">
                                     <p className="text-xs uppercase tracking-[0.15em] text-muted-foreground">Time Elapsed</p>
                                     <p className="mt-2 font-mono text-2xl font-semibold tracking-widest text-foreground">
-                                      {formatElapsedTime(entry.joinTime, currentTimeMs)}
+                                      {formatElapsedTime(entry.inProgressAt ?? entry.joinTime, currentTimeMs)}
                                     </p>
                                   </div>
 
