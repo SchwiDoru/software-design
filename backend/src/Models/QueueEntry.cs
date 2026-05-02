@@ -8,6 +8,7 @@ public class QueueEntry
     public int Id {get; private set;}
     public int? Position {get; set;}
     public DateTime JoinTime {get; set;}
+    public DateTime? InProgressAt { get; set; }
     public QueueEntryStatus Status {get; set;}
     public PriorityLevel Priority {get; set;}
     public string? Description {get; set;}
